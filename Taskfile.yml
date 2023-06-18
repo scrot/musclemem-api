@@ -1,6 +1,16 @@
 version: '3'
 
+env:
+  GOOS: "darwin"
+  GOARCH: "arm64"
+  PORT: 4000
+  ENVIRONMENT: "development"
+
 tasks:
   build:
     cmds:
-      - go build -v -o bin/musclemem-api cmd/api/main.go
+      - go build -o ./bin/musclemem-api ./cmd/api
+  run:
+    deps: [build]
+    cmds:
+      - ./bin/musclemem-api
