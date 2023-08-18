@@ -77,7 +77,8 @@ run/live:
 
 # run/docker: create and run docker image in docker environment
 .PHONY: run/docker
-run/docker: release
+run/docker:
+	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser build --clean
 	docker build -t ${BINARY_NAME} -f Dockerfile.goreleaser .	
 	docker run --rm -p 8080:80 ${BINARY_NAME}
 
@@ -92,7 +93,7 @@ push: tidy audit no-dirty
 
 .PHONY: release
 release:
-	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser release --snapshot --clean
+	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser release --clean
 
 ## production/deploy: deploy the application to production
 .PHONY: production/deploy
