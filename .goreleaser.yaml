@@ -13,7 +13,8 @@ builds:
       - linux
       - windows
       - darwin
-    dir: cmd/api
+    main: ./cmd/api
+    binary: musclemem-api
 
 archives:
   - format: tar.gz
