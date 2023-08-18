@@ -1,9 +1,17 @@
 module github.com/scrot/musclemem-api
 
-go 1.20
+go 1.21
 
 require (
-	github.com/caarlos0/env/v8 v8.0.0
+	github.com/caarlos0/env/v9 v9.0.0
 	github.com/lmittmann/tint v0.3.4
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
+	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
 )
+
+require (
+	github.com/go-chi/chi/v5 v5.0.10
+	github.com/gofrs/uuid/v5 v5.0.0
+	github.com/julienschmidt/httprouter v1.3.0
+)
+
+require go.uber.org/automaxprocs v1.5.3
