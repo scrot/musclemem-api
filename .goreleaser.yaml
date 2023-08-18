@@ -50,7 +50,7 @@ dockers:
       - --label=org.opencontainers.image.licenses=MIT 
 
 docker_manifests:
-  - name_template: scrot/{{.ProjectName}}
+  - name_template: ghcr.io/scrot/{{.ProjectName}}
     image_templates:
       - "ghcr.io/scrot/{{ .ProjectName }}:{{ .Tag }}-arm64"
 
