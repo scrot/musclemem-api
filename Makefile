@@ -91,7 +91,7 @@ run/docker:
 push: tidy audit no-dirty
 	git push
 
-.PHONY release
+.PHONY: release
 release: goreleaser release --clean
 
 ## production/deploy: deploy the application to production
