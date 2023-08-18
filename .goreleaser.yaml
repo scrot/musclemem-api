@@ -7,7 +7,7 @@ before:
     # You may remove this if you don't use go modules.
     - go mod tidy
     # you may remove this if you don't need go generate
-    - go generate ./...
+    # - go generate ./...
 
 builds:
   - env:
@@ -38,10 +38,21 @@ archives:
 
 dockers:
   - image_templates:
-      - "gcr.io/scrot/{{ .ProjectName }}:{{ .Tag }}"
-      - "gcr.io/scrot/{{ .ProjectName }}:v{{ .Major }}"
-      - "gcr.io/scrot/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
-      - "gcr.io/scrot/{{ .ProjectName }}:latest"
+      - "ghcr.io/scrot/{{ .ProjectName }}:{{ .Tag }}-arm64"
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.source=https://github.com/scrot/{{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=MIT 
+
+docker_manifests:
+  - name_template: scrot/{{.ProjectName}}
+    image_templates:
+      - "ghcr.io/scrot/{{ .ProjectName }}:{{ .Tag }}-arm64"
 
 checksum:
   name_template: 'checksums.txt'

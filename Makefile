@@ -1,7 +1,6 @@
 # Change these variables as necessary.
 MAIN_PACKAGE_PATH := ./cmd/api
 BINARY_NAME := musclemem-api
-GITHUB_TOKEN := "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" 
 
 # ==================================================================================== #
 # HELPERS
@@ -78,8 +77,8 @@ run/live:
 
 # run/docker: create and run docker image in docker environment
 .PHONY: run/docker
-run/docker:
-	docker build -t ${BINARY_NAME} -f Dockerfile .	
+run/docker: release
+	docker build -t ${BINARY_NAME} -f Dockerfile.goreleaser .	
 	docker run --rm -p 8080:80 ${BINARY_NAME}
 
 # ==================================================================================== #
@@ -93,7 +92,7 @@ push: tidy audit no-dirty
 
 .PHONY: release
 release:
-	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser release --clean
+	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser release --snapshot --clean
 
 ## production/deploy: deploy the application to production
 .PHONY: production/deploy
