@@ -1,11 +1,14 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
+project_name: musclemem-api
+
 before:
   hooks:
     # You may remove this if you don't use go modules.
     - go mod tidy
     # you may remove this if you don't need go generate
     - go generate ./...
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -16,7 +19,7 @@ builds:
     main: ./cmd/api
     binary: musclemem-api
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.maintainer="Roy de Wildt"
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.maintainer=rdewildt
 
 archives:
   - format: tar.gz
@@ -33,10 +36,19 @@ archives:
     - goos: windows
       format: zip
 
+dockers:
+  - image_templates:
+      - "gcr.io/scrot/{{ .ProjectName }}:{{ .Tag }}"
+      - "gcr.io/scrot/{{ .ProjectName }}:v{{ .Major }}"
+      - "gcr.io/scrot/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
+      - "gcr.io/scrot/{{ .ProjectName }}:latest"
+
 checksum:
   name_template: 'checksums.txt'
+
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
+
 changelog:
   sort: asc
   filters:
