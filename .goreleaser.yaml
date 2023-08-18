@@ -15,6 +15,8 @@ builds:
       - darwin
     main: ./cmd/api
     binary: musclemem-api
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.maintainer="Roy de Wildt"
 
 archives:
   - format: tar.gz

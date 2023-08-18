@@ -92,7 +92,8 @@ push: tidy audit no-dirty
 	git push
 
 .PHONY: release
-release: goreleaser release --clean
+release:
+	goreleaser release --clean
 
 ## production/deploy: deploy the application to production
 .PHONY: production/deploy
