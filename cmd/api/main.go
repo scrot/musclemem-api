@@ -16,15 +16,23 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-type config struct {
-	Version         string `env:"VERSION" envDefault:"0.0.1"`
+var date string
+var commit string
+var version string
+var maintainer string
+
+type Config struct {
+	Version         string
+	Date            string
+	Maintainer      string
+	Commit          string
 	Port            int    `env:"PORT" envDefault:"4000"`
 	Env             string `env:"ENVIRONMENT" envDefault:"development"`
 	ShutdownTimeout string `env:"SHUTDOWN_TIMEOUT" envDefault:"3s"`
 }
 
 type api struct {
-	config config
+	config Config
 	logger *slog.Logger
 }
 
@@ -41,10 +49,28 @@ func main() {
 	g := runtime.GOMAXPROCS(0)
 
 	// parse environment variables
-	var cfg config
+	var cfg Config
 	if err := env.Parse(&cfg); err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
+	}
+
+	if version != "" {
+		cfg.Version = version
+	} else {
+		cfg.Version = "v0.0.0"
+	}
+
+	if maintainer != "" {
+		cfg.Maintainer = maintainer
+	}
+
+	if date != "" {
+		cfg.Date = date
+	}
+
+	if commit != "" {
+		cfg.Commit = commit
 	}
 
 	d, err := time.ParseDuration(cfg.ShutdownTimeout)

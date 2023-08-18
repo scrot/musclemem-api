@@ -1,6 +1,7 @@
 # Change these variables as necessary.
 MAIN_PACKAGE_PATH := ./cmd/api
 BINARY_NAME := musclemem-api
+GITHUB_TOKEN="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" 
 
 # ==================================================================================== #
 # HELPERS
@@ -89,6 +90,9 @@ run/docker:
 .PHONY: push
 push: tidy audit no-dirty
 	git push
+
+.PHONY release
+release: goreleaser release --clean
 
 ## production/deploy: deploy the application to production
 .PHONY: production/deploy
