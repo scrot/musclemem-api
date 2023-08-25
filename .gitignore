@@ -15,10 +15,13 @@
 !go.sum
 !go.mod
 
+!*.yaml
+
 !README.md
 !LICENSE
 
 !Makefile
+!Dockerfile*
 
 # ...even if they are in subdirectories
 !*/

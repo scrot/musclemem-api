@@ -1,6 +1,10 @@
 # Change these variables as necessary.
 MAIN_PACKAGE_PATH := ./cmd/api
 BINARY_NAME := musclemem-api
+GITHUB_UNAME := scrot
+
+# Export the following environment variables 
+# GITHUB_TOKEN
 
 # ==================================================================================== #
 # HELPERS
@@ -19,7 +23,6 @@ confirm:
 .PHONY: no-dirty
 no-dirty:
 	git diff --exit-code
-
 
 # ==================================================================================== #
 # QUALITY CONTROL
@@ -59,7 +62,8 @@ test/cover:
 ## build: build the application
 .PHONY: build
 build:
-	go build -o=/tmp/bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser build --snapshot --clean
+# go build -o=/tmp/bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
 
 ## run: run the application
 .PHONY: run
@@ -77,14 +81,25 @@ run/live:
 
 # run/docker: create and run docker image in docker environment
 .PHONY: run/docker
-run/docker:
-	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser build --clean
+run/docker: build
 	docker build -t ${BINARY_NAME} -f Dockerfile.goreleaser .	
 	docker run --rm -p 8080:80 ${BINARY_NAME}
+
+# run/kubernetes: create and run project in k8s environment
+.PHONY: run/kubernetes
+run/kubernetes: build
+	kubectl delete -f ./charts/musclemem-api.yaml
+	kubectl apply -f ./charts/musclemem-api.yaml
+	
 
 # ==================================================================================== #
 # OPERATIONS
 # ==================================================================================== #
+
+## kube/creds: store regcred for project images in kubernetes
+.PHONY: kube/creds
+kube/creds:
+	kubectl create secret docker-registry regcred --docker-server=ghcr.io --docker-username=${GITHUB_UNAME} --docker-password=${GITHUB_TOKEN}
 
 ## push: push changes to the remote Git repository
 .PHONY: push

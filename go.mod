@@ -15,3 +15,5 @@ require (
 )
 
 require go.uber.org/automaxprocs v1.5.3
+
+require github.com/google/jsonapi v1.0.0 // indirect

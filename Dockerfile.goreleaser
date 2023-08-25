@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1
+
+FROM --platform=arm64 gcr.io/distroless/static-debian11
+
+LABEL maintainer="Roy de Wildt"
+
+COPY musclemem-api .
+
+USER nonroot:nonroot
+
+ENV PORT=80
+
+EXPOSE 80
+
+ENTRYPOINT [ "./musclemem-api" ]

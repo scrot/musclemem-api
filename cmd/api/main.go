@@ -1,19 +1,15 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"net/http"
 	"os"
-	"os/signal"
 	"runtime"
-	"syscall"
-	"time"
 
 	"github.com/caarlos0/env/v9"
 	"github.com/lmittmann/tint"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/exp/slog"
+
+	"github.com/scrot/musclemem-api/internal"
 )
 
 var date string
@@ -21,24 +17,7 @@ var commit string
 var version string
 var maintainer string
 
-type Config struct {
-	Version         string
-	Date            string
-	Maintainer      string
-	Commit          string
-	Port            int    `env:"PORT" envDefault:"4000"`
-	Env             string `env:"ENVIRONMENT" envDefault:"development"`
-	ShutdownTimeout string `env:"SHUTDOWN_TIMEOUT" envDefault:"3s"`
-}
-
-type api struct {
-	config Config
-	logger *slog.Logger
-}
-
 func main() {
-	ctx := context.Background()
-
 	log := slog.New(tint.NewHandler(os.Stdout, nil))
 
 	// set GOMAXPROCS to adhere container quota if set
@@ -46,14 +25,25 @@ func main() {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
-	g := runtime.GOMAXPROCS(0)
 
-	// parse environment variables
-	var cfg Config
-	if err := env.Parse(&cfg); err != nil {
+	// Parse environment variables and build flags
+	cfg, err := parseConfig()
+	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
+
+	server := internal.NewServer(cfg, log)
+	server.Start()
+}
+
+// parseConfig parses global variables that can be set by LDFLAGS during build time
+// environment variables overwrite build-time variables.
+func parseConfig() (internal.ServerConfig, error) {
+	var cfg internal.ServerConfig
+
+	g := runtime.GOMAXPROCS(0)
+	cfg.Threads = g
 
 	if version != "" {
 		cfg.Version = version
@@ -73,49 +63,9 @@ func main() {
 		cfg.Commit = commit
 	}
 
-	d, err := time.ParseDuration(cfg.ShutdownTimeout)
-	if err != nil {
-		log.Error(err.Error())
-		os.Exit(1)
+	if err := env.Parse(&cfg); err != nil {
+		return cfg, err
 	}
 
-	api := &api{
-		config: cfg,
-		logger: log,
-	}
-
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      api.routes(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
-
-	log.Info("starting api server", "port", cfg.Port, "env", cfg.Env, "cpus", g)
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			switch err {
-			case http.ErrServerClosed:
-				log.Info("api server stopped listening to new requests")
-			default:
-				log.Error(err.Error())
-			}
-		}
-	}()
-
-	// block till termination signal is received
-	shutdown := make(chan os.Signal, 1)
-	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
-	<-shutdown
-
-	// shutdown server or kill server after timeout expires
-	log.Info("server is gracefully shutting down", "timeout", d)
-	ctx, cancel := context.WithTimeout(ctx, d)
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Error(err.Error())
-		os.Exit(1)
-	}
-	cancel()
+	return cfg, nil
 }
