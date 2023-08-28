@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -58,12 +60,19 @@ func (s *exerciseTestStorage) ExerciseByID(id int) (Exercise, error) {
 }
 
 func TestSingleExerciseResponse(t *testing.T) {
-	s := NewServer(ServerConfig{}, slog.Default(), newExerciseTestStorage())
+	s := NewServer(ServerConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)), newExerciseTestStorage())
+	ts := httptest.NewServer(s.Routes())
+	defer ts.Close()
 
-	r := httptest.NewRequest(http.MethodGet, "/exercise/1", nil)
-	w := httptest.NewRecorder()
+	resp, err := ts.Client().Get(ts.URL + "/exercises/1")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	s.HandleExerciseDetails(w, r)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "status code should be equal")
 
-	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+	// assert body here
+	body, _ := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	fmt.Sprintf("data: %s", body)
 }

@@ -16,7 +16,10 @@ var version string
 var maintainer string
 
 func main() {
-	log := slog.New(tint.NewHandler(os.Stdout, nil))
+	opts := &tint.Options{
+		Level: slog.LevelDebug,
+	}
+	log := slog.New(tint.NewHandler(os.Stdout, opts))
 
 	// set GOMAXPROCS to adhere container quota if set
 	if _, err := maxprocs.Set(); err != nil {

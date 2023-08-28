@@ -51,10 +51,12 @@ func (e Exercise) JSONAPIRelationshipLinks(relation string) *jsonapi.Links {
 }
 
 func (s *Server) HandleExerciseDetails(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	id, err := strconv.Atoi(chi.URLParam(r, "exerciseID"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+
+	s.logger.Debug("exercise details request", "id", id, "path", r.URL.Path)
 
 	e, err := s.exercises.ExerciseByID(id)
 	if err != nil {

@@ -38,16 +38,21 @@ func NewServer(cfg ServerConfig, logger *slog.Logger, exercises ExerciseStorer) 
 	}
 }
 
+func (s *Server) Routes() http.Handler {
+	router := chi.NewRouter()
+
+	router.MethodFunc(http.MethodGet, "/health", s.HandleHealth)
+	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.HandleExerciseDetails)
+
+	return router
+}
+
 func (s *Server) Start() {
 	ctx := context.Background()
 
-	router := chi.NewRouter()
-	router.HandleFunc("/health", s.HandleHealth)
-	router.HandleFunc("/exercise/{id}", s.HandleExerciseDetails)
-
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s", s.URL),
-		Handler:      router,
+		Handler:      s.Routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
