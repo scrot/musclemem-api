@@ -1,15 +1,13 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"runtime"
 
 	"github.com/caarlos0/env/v9"
 	"github.com/lmittmann/tint"
 	"go.uber.org/automaxprocs/maxprocs"
-	"golang.org/x/exp/slog"
-
-	"github.com/scrot/musclemem-api/internal"
 )
 
 var date string
@@ -33,14 +31,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := internal.NewServer(cfg, log)
+	server := NewServer(cfg, log, nil)
 	server.Start()
 }
 
 // parseConfig parses global variables that can be set by LDFLAGS during build time
 // environment variables overwrite build-time variables.
-func parseConfig() (internal.ServerConfig, error) {
-	var cfg internal.ServerConfig
+func parseConfig() (ServerConfig, error) {
+	var cfg ServerConfig
 
 	g := runtime.GOMAXPROCS(0)
 	cfg.Threads = g

@@ -1,15 +1,16 @@
-package internal
+package main
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"golang.org/x/exp/slog"
+	"github.com/go-chi/chi/v5"
 )
 
 type ServerConfig struct {
@@ -18,41 +19,41 @@ type ServerConfig struct {
 	Maintainer      string `env:"MAINTAINER"`
 	Commit          string `env:"COMMIT"`
 	Threads         int    `env:"THREADS"`
-	Port            int    `env:"PORT" envDefault:"4000"`
+	URL             string `env:"URL" envDefault:"127.0.0.1:8080"`
 	Environment     string `env:"ENVIRONMENT" envDefault:"development"`
 	ShutdownTimeout string `env:"SHUTDOWN_TIMEOUT" envDefault:"3s"`
 }
 
 type Server struct {
 	ServerConfig
-	logger *slog.Logger
+	logger    *slog.Logger
+	exercises ExerciseStorer
 }
 
-func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
-	return &Server{cfg, logger}
+func NewServer(cfg ServerConfig, logger *slog.Logger, exercises ExerciseStorer) *Server {
+	return &Server{
+		cfg,
+		logger,
+		exercises,
+	}
 }
 
 func (s *Server) Start() {
 	ctx := context.Background()
 
-	router := http.NewServeMux()
+	router := chi.NewRouter()
 	router.HandleFunc("/health", s.HandleHealth)
-
-	d, err := time.ParseDuration(s.ShutdownTimeout)
-	if err != nil {
-		s.logger.Error(err.Error())
-		os.Exit(1)
-	}
+	router.HandleFunc("/exercise/{id}", s.HandleExerciseDetails)
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.Port),
+		Addr:         fmt.Sprintf("%s", s.URL),
 		Handler:      router,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
-	s.logger.Info("starting api server", "port", s.Port, "env", s.Environment, "cpus", s.Threads)
+	s.logger.Info("starting api server", "addr", srv.Addr, "env", s.Environment, "cpus", s.Threads)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			switch err {
@@ -70,6 +71,12 @@ func (s *Server) Start() {
 	<-shutdown
 
 	// shutdown server or kill server after timeout expires
+	d, err := time.ParseDuration(s.ShutdownTimeout)
+	if err != nil {
+		s.logger.Error(err.Error())
+		os.Exit(1)
+	}
+
 	s.logger.Info("server is gracefully shutting down", "timeout", d)
 	ctx, cancel := context.WithTimeout(ctx, d)
 	if err := srv.Shutdown(ctx); err != nil {
@@ -79,11 +86,27 @@ func (s *Server) Start() {
 	cancel()
 }
 
-func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "status: available\n")
-	fmt.Fprintf(w, "environment: %s\n", s.Environment)
-	fmt.Fprintf(w, "version: %s\n", s.Version)
-	fmt.Fprintf(w, "commit: %s\n", s.Commit)
-	fmt.Fprintf(w, "date: %s\n", s.Date)
-	fmt.Fprintf(w, "maintainer: %s\n", s.Maintainer)
+func (s *Server) HandleMain(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Common code for all requests can go here...
+
+	switch r.Method {
+	case http.MethodGet:
+		// Handle the GET request...
+
+	case http.MethodPost:
+		// Handle the POST request...
+
+	case http.MethodOptions:
+		w.Header().Set("Allow", "GET, POST, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		w.Header().Set("Allow", "GET, POST, OPTIONS")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }

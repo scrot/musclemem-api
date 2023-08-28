@@ -1,10 +1,9 @@
-# Change these variables as necessary.
-MAIN_PACKAGE_PATH := ./cmd/api
+MAIN_PACKAGE_PATH := .
 BINARY_NAME := musclemem-api
-GITHUB_UNAME := scrot
+OUTPUT_PATH := /tmp/${BINARY_NAME}
 
-# Export the following environment variables 
-# GITHUB_TOKEN
+GITHUB_UNAME := scrot
+# GITHUB_TOKEN export this variable
 
 # ==================================================================================== #
 # HELPERS
@@ -56,25 +55,26 @@ test:
 ## test/cover: run all tests and display coverage
 .PHONY: test/cover
 test/cover:
-	go test -v -race -buildvcs -coverprofile=/tmp/coverage.out ./...
-	go tool cover -html=/tmp/coverage.out
+	go test -v -race -buildvcs -coverprofile=${OUTPUT_PATH}/coverage.out ./...
+	go tool cover -html=${OUTPUT_PATH}/coverage.out
 
 ## build: build the application
 .PHONY: build
-build:
-	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser build --snapshot --clean
-# go build -o=/tmp/bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+build: tidy
+	go build -ldflags='-X main.version=$(shell date +"%d%m%y")-snapshot \
+		-X main.maintainer=rdewildt' \
+		-o=${OUTPUT_PATH} ${MAIN_PACKAGE_PATH}
 
 ## run: run the application
 .PHONY: run
 run: build
-	/tmp/bin/${BINARY_NAME}
+	${OUTPUT_PATH}
 
 ## run/live: run the application with reloading on file changes
 .PHONY: run/live
 run/live:
 	go run github.com/cosmtrek/air@v1.43.0 \
-		--build.cmd "make build" --build.bin "/tmp/bin/${BINARY_NAME}" --build.delay "100" \
+		--build.cmd "make build" --build.bin "${OUTPUT_PATH}" --build.delay "100" \
 		--build.exclude_dir "" \
 		--build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" \
 		--misc.clean_on_exit "true"
@@ -90,14 +90,15 @@ run/docker: build
 run/kubernetes: build
 	kubectl delete -f ./charts/musclemem-api.yaml
 	kubectl apply -f ./charts/musclemem-api.yaml
+	kubectl port-forward deployment/musclemem-api 8080:80
 	
 
 # ==================================================================================== #
 # OPERATIONS
 # ==================================================================================== #
 
-## kube/creds: store regcred for project images in kubernetes
-.PHONY: kube/creds
+## kube/ghcr-creds: store ghcr.io container regestry creds in kubernetes
+.PHONY: kube/ghcr-creds
 kube/creds:
 	kubectl create secret docker-registry regcred --docker-server=ghcr.io --docker-username=${GITHUB_UNAME} --docker-password=${GITHUB_TOKEN}
 
@@ -111,7 +112,7 @@ release:
 	GITHUB_TOKEN=${GITHUB_TOKEN} goreleaser release --clean
 
 ## production/deploy: deploy the application to production
-.PHONY: production/deploy
-production/deploy: confirm tidy audit no-dirty
-	GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=/tmp/bin/linux_amd64/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
-	upx -5 /tmp/bin/linux_amd64/${BINARY_NAME}
+# .PHONY: production/deploy
+# production/deploy: confirm tidy audit no-dirty
+# 	GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=/tmp/bin/linux_amd64/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+# 	upx -5 /tmp/bin/linux_amd64/${BINARY_NAME}

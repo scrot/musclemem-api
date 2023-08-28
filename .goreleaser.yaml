@@ -2,6 +2,8 @@
 # Make sure to check the documentation at https://goreleaser.com
 project_name: musclemem-api
 
+dist: /tmp/musclemem-api/dist
+
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -16,7 +18,7 @@ builds:
       - linux
       - windows
       - darwin
-    main: ./cmd/api
+    main: .
     binary: musclemem-api
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.maintainer=rdewildt
