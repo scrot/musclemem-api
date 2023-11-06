@@ -15,6 +15,9 @@
 !go.sum
 !go.mod
 
+!*.db
+!*.sql
+
 !*.yaml
 
 !README.md

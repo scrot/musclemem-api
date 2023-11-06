@@ -1,82 +1,89 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/scrot/jsonapi"
 )
 
 type Exercise struct {
-	ID          int       `jsonapi:"primary,exercises"`
-	Name        string    `jsonapi:"attr,name"`
-	Weight      float64   `jsonapi:"attr,weight"`
-	Repetitions int       `jsonapi:"attr,repetitions"`
-	Next        *Exercise `jsonapi:"relation,next,omitempty"`
-	Previous    *Exercise `jsonapi:"relation,previous,omitempty"`
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Weight      float64   `json:"weight"`
+	Repetitions int       `json:"repetitions"`
+	Next        uuid.UUID `json:"next,omitempty"`
+	Previous    uuid.UUID `json:"previous,omitempty"`
 }
 
 var (
+	emptyJSON = []byte("{}")
+)
+
+var (
+	ErrNoIDProvided     = errors.New("no exercise id provided")
+	ErrInvalidIdFormat  = errors.New("id is incorrectly formatted")
 	ErrExerciseNotFound = errors.New("exercise not found")
 )
 
-type ExerciseStorer interface {
-	ExerciseByID(int) (Exercise, error)
+type ExerciseRetreiver interface {
+	ExerciseByID(uuid.UUID) (Exercise, error)
 }
 
-func (e Exercise) JSONAPILinks() *jsonapi.Links {
-	ls := jsonapi.Links{
-		"self": fmt.Sprintf("/exercises/%d", e.ID),
-	}
-	return &ls
-}
+// HandleSingleExercise handles the request for a single exercise
+// returning the details of exercise as json given an exerciseID
+func (s *Server) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "exerciseID")
 
-func (e Exercise) JSONAPIRelationshipLinks(relation string) *jsonapi.Links {
-	switch relation {
-	case "next_exercise":
-		return &jsonapi.Links{
-			"related": fmt.Sprintf("/exercises/%d", e.Next.ID),
-		}
-	case "previous_exercise":
-		return &jsonapi.Links{
-			"related": fmt.Sprintf("/exercises/%d", e.Previous.ID),
-		}
-	default:
-		return nil
-	}
-}
+	s.logger.Debug("exercise %s requested", "id", id, "path", r.URL.Path)
 
-func (s *Server) HandleExerciseDetails(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(chi.URLParam(r, "exerciseID"))
+	e, err := FetchSingleExerciseJSON(s.exercises, id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	s.logger.Debug("exercise details request", "id", id, "path", r.URL.Path)
-
-	e, err := s.exercises.ExerciseByID(id)
-	if err != nil {
-		msg := fmt.Errorf("exercise with id %d: %w", id, err).Error()
+		msg := fmt.Errorf("exercise with id %s: %w", id, err).Error()
 		s.logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
 
-	var buf bytes.Buffer
-	if err := jsonapi.MarshalPayload(&buf, &e); err != nil {
-		msg := fmt.Errorf("marshal exercise %d: %w", id, err).Error()
+	payload, err := json.Marshal(&e)
+	if err != nil {
+		msg := fmt.Errorf("marshal exercise %s: %w", id, err).Error()
 		s.logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
 
 	w.Header().Set("Content-Type", jsonapi.MediaType)
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(payload); err != nil {
 		msg := fmt.Errorf("writing response: %w", err).Error()
 		s.logger.Error(msg)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func FetchSingleExerciseJSON(exercises ExerciseRetreiver, id string) ([]byte, error) {
+	if id == "" {
+		return emptyJSON, ErrNoIDProvided
+
+	}
+
+	exerciseId, err := uuid.Parse(id)
+	if err != nil {
+		return emptyJSON, ErrInvalidIdFormat
+	}
+
+	exercise, err := exercises.ExerciseByID(exerciseId)
+	if err != nil {
+		return emptyJSON, err
+	}
+
+	payload, err := json.Marshal(&exercise)
+	if err != nil {
+		return emptyJSON, err
+	}
+
+	return payload, nil
 }

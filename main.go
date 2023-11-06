@@ -34,7 +34,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := NewServer(cfg, log, nil)
+	// Setup database connections
+	xs, err := NewExercises()
+	if err != nil {
+		log.Error(err.Error())
+		os.Exit(1)
+	}
+
+	server := NewServer(cfg, log, xs)
 	server.Start()
 }
 

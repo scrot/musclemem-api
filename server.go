@@ -27,10 +27,10 @@ type ServerConfig struct {
 type Server struct {
 	ServerConfig
 	logger    *slog.Logger
-	exercises ExerciseStorer
+	exercises ExerciseRetreiver
 }
 
-func NewServer(cfg ServerConfig, logger *slog.Logger, exercises ExerciseStorer) *Server {
+func NewServer(cfg ServerConfig, logger *slog.Logger, exercises ExerciseRetreiver) *Server {
 	return &Server{
 		cfg,
 		logger,
@@ -42,7 +42,7 @@ func (s *Server) Routes() http.Handler {
 	router := chi.NewRouter()
 
 	router.MethodFunc(http.MethodGet, "/health", s.HandleHealth)
-	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.HandleExerciseDetails)
+	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.HandleSingleExercise)
 
 	return router
 }
@@ -89,29 +89,4 @@ func (s *Server) Start() {
 		os.Exit(1)
 	}
 	cancel()
-}
-
-func (s *Server) HandleMain(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	// Common code for all requests can go here...
-
-	switch r.Method {
-	case http.MethodGet:
-		// Handle the GET request...
-
-	case http.MethodPost:
-		// Handle the POST request...
-
-	case http.MethodOptions:
-		w.Header().Set("Allow", "GET, POST, OPTIONS")
-		w.WriteHeader(http.StatusNoContent)
-
-	default:
-		w.Header().Set("Allow", "GET, POST, OPTIONS")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	}
 }
