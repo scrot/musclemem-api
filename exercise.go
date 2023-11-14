@@ -1,4 +1,4 @@
-package main
+package musclememapi
 
 import (
 	"encoding/json"
@@ -12,16 +12,21 @@ import (
 )
 
 type Exercise struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	Weight      float64   `json:"weight"`
-	Repetitions int       `json:"repetitions"`
-	Next        uuid.UUID `json:"next,omitempty"`
-	Previous    uuid.UUID `json:"previous,omitempty"`
+	ID          uuid.UUID    `json:"id"`
+	Name        string       `json:"name"`
+	Weight      float64      `json:"weight"`
+	Repetitions int          `json:"repetitions"`
+	Next        *ExerciseRef `json:"next,omitempty"`
+	Previous    *ExerciseRef `json:"previous,omitempty"`
+}
+
+type ExerciseRef struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 var (
-	emptyJSON = []byte("{}")
+	EmptyJSON = []byte("{}")
 )
 
 var (
@@ -43,7 +48,7 @@ func (s *Server) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Debug("new single exercise request", "id", id, "path", r.URL.Path)
 
-	e, err := FetchSingleExerciseJSON(s.exercises, id)
+	e, err := FetchSingleExerciseJSON(s.store, id)
 	if err != nil {
 		msg := fmt.Errorf("exercise retrieval error: %w", err).Error()
 		s.logger.Error(msg)
@@ -68,23 +73,23 @@ func (s *Server) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 // if no exercise with that id is found an ErrExerciseNotFound is returned
 func FetchSingleExerciseJSON(exercises ExerciseRetreiver, id string) ([]byte, error) {
 	if id == "" {
-		return emptyJSON, ErrNoIDProvided
+		return EmptyJSON, ErrNoIDProvided
 
 	}
 
 	exerciseId, err := uuid.Parse(id)
 	if err != nil {
-		return emptyJSON, ErrInvalidIdFormat
+		return EmptyJSON, ErrInvalidIdFormat
 	}
 
 	exercise, err := exercises.ExerciseByID(exerciseId)
 	if err != nil {
-		return emptyJSON, err
+		return EmptyJSON, err
 	}
 
 	payload, err := json.Marshal(&exercise)
 	if err != nil {
-		return emptyJSON, err
+		return EmptyJSON, err
 	}
 
 	return payload, nil
@@ -99,31 +104,44 @@ var (
 // an exercises repository
 type ExerciseStorer interface {
 	Exists(uuid.UUID) bool
-	StoreExercise(Exercise) (uuid.UUID, error)
+	StoreExercise(Exercise) error
 }
 
-// StoreExerciseJSON stores an Exercise formatted as JSON in the exercises
-// repository provided by the ExerciseStorer. If the JSON contains an ID
-// it will overwrite, or throws an error if the ID doesn't exist
-func StoreExerciseJSON(exercises ExerciseStorer, exerciseJSON []byte) (uuid.UUID, error) {
-	var e Exercise
+// StoreExerciseJSON stores an Exercise formatted as JSON
+// in the exercises repository provided by the ExerciseStorer.
+// If an ID is provided, it will overwrite it if it exists or throws an error
+func StoreExerciseJSON(exercises ExerciseStorer, exerciseJSON []byte) error {
+	var exercise Exercise
 
-	// also throws the error if the id is of an invalid uuid lenght
-	if err := json.Unmarshal(exerciseJSON, &e); err != nil {
-		return uuid.Nil, ErrInvalidJSON
+	// also throws the error if the id is of an invalid uuid length
+	if err := json.Unmarshal(exerciseJSON, &exercise); err != nil {
+		return ErrInvalidJSON
 	}
 
-	if (e == Exercise{}) {
-		return uuid.Nil, ErrEmptyExercise
+	return storeExercise(exercises, exercise)
+}
+
+// BatchStoreExerciseJSON stores a list of exercises
+// in the exercise repository provided by the ExerciseStorer
+// If an ID is provided, it will overwrite it if it exists or throws an error
+func BatchStoreExerciseJSON(exercises ExerciseStorer, exerciseJSON []byte) error {
+	var xs []Exercise
+
+	// also throws the error if the id is of an invalid uuid length
+	if err := json.Unmarshal(exerciseJSON, &xs); err != nil {
+		return ErrInvalidJSON
 	}
 
-	if e.ID != uuid.Nil && !exercises.Exists(e.ID) {
-		return uuid.Nil, ErrExerciseNotFound
+	for _, exercise := range xs {
+		if err := storeExercise(exercises, exercise); err != nil {
+			return err
+		}
 	}
 
-	if e.ID == uuid.Nil {
-		e.ID = uuid.New()
-	}
+	return nil
+}
 
-	return exercises.StoreExercise(e)
+func storeExercise(exercises ExerciseStorer, exercise Exercise) error {
+
+	return exercises.StoreExercise(exercise)
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/caarlos0/env/v9"
 	"github.com/lmittmann/tint"
+	musclememapi "github.com/scrot/musclemem-api"
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
@@ -35,20 +36,20 @@ func main() {
 	}
 
 	// Setup database connections
-	xs, err := NewExercises()
+	store, err := musclememapi.NewSqliteDatastore("file://musclemem.db", true)
 	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
 
-	server := NewServer(cfg, log, xs)
+	server := musclememapi.NewServer(cfg, log, store)
 	server.Start()
 }
 
 // parseConfig parses global variables that can be set by LDFLAGS during build time
 // environment variables overwrite build-time variables.
-func parseConfig() (ServerConfig, error) {
-	var cfg ServerConfig
+func parseConfig() (musclememapi.ServerConfig, error) {
+	var cfg musclememapi.ServerConfig
 
 	g := runtime.GOMAXPROCS(0)
 	cfg.Threads = g

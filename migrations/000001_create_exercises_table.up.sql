@@ -1,5 +1,7 @@
  CREATE TABLE IF NOT EXISTS exercises (
-  id TEXT PRIMARY KEY,
+  excercise_id INTEGER PRIMARY KEY,
+  owner INTEGER NOT NULL,
+  workout TEXT NOT NULL,
   name TEXT NOT NULL,
   weight REAL,
   repetitions INTEGER,

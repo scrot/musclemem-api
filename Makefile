@@ -1,4 +1,4 @@
-MAIN_PACKAGE_PATH := .
+MAIN_PACKAGE_PATH := ./cmd/server
 BINARY_NAME := musclemem-api
 OUTPUT_PATH := /tmp/${BINARY_NAME}
 
