@@ -5,14 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/scrot/jsonapi"
 )
 
 type Exercise struct {
-	ID          uuid.UUID    `json:"id"`
+	ID          int          `json:"id"`
+	Owner       int          `json:"owner"`
+	Workout     string       `json:"workout"`
 	Name        string       `json:"name"`
 	Weight      float64      `json:"weight"`
 	Repetitions int          `json:"repetitions"`
@@ -20,9 +22,13 @@ type Exercise struct {
 	Previous    *ExerciseRef `json:"previous,omitempty"`
 }
 
+func (e Exercise) Ref() *ExerciseRef {
+	return &ExerciseRef{e.ID, e.Name}
+}
+
 type ExerciseRef struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 var (
@@ -38,15 +44,23 @@ var (
 // ExerciseRetreiver is an interface for retreiving an Exercise
 // from an exercises repository
 type ExerciseRetreiver interface {
-	ExerciseByID(uuid.UUID) (Exercise, error)
+	ExerciseByID(int) (Exercise, error)
 }
 
 // HandleSingleExercise handles the request for a single exercise
 // returning the details of exercise as json given an exerciseID
 func (s *Server) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "exerciseID")
+	idParam := chi.URLParam(r, "exerciseID")
 
-	s.logger.Debug("new single exercise request", "id", id, "path", r.URL.Path)
+	s.logger.Debug("new single exercise request", "id", idParam, "path", r.URL.Path)
+
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		msg := fmt.Sprintf("%d not a valid id: %s", id, err)
+		s.logger.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
+
+	}
 
 	e, err := FetchSingleExerciseJSON(s.store, id)
 	if err != nil {
@@ -71,18 +85,13 @@ func (s *Server) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 // FetchSingleExerciseJSON takes a exercise repository and an id and returns
 // an exercise in JSON format. the id must be a valid UUID or ErrInvalidIdFormat is returned
 // if no exercise with that id is found an ErrExerciseNotFound is returned
-func FetchSingleExerciseJSON(exercises ExerciseRetreiver, id string) ([]byte, error) {
-	if id == "" {
+func FetchSingleExerciseJSON(exercises ExerciseRetreiver, id int) ([]byte, error) {
+	if id == 0 {
 		return EmptyJSON, ErrNoIDProvided
 
 	}
 
-	exerciseId, err := uuid.Parse(id)
-	if err != nil {
-		return EmptyJSON, ErrInvalidIdFormat
-	}
-
-	exercise, err := exercises.ExerciseByID(exerciseId)
+	exercise, err := exercises.ExerciseByID(id)
 	if err != nil {
 		return EmptyJSON, err
 	}
@@ -103,7 +112,7 @@ var (
 // ExerciseStorer is an interface for storing Exercises in
 // an exercises repository
 type ExerciseStorer interface {
-	Exists(uuid.UUID) bool
+	ExerciseExists(int) bool
 	StoreExercise(Exercise) error
 }
 

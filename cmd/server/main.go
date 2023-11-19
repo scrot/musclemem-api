@@ -36,7 +36,13 @@ func main() {
 	}
 
 	// Setup database connections
-	store, err := musclememapi.NewSqliteDatastore("file://musclemem.db", true)
+	dbConfig := musclememapi.SqliteDatastoreConfig{
+		DatabaseURL: "file://musclemem.db",
+		Overwrite:   false,
+		Logger:      nil,
+	}
+
+	store, err := musclememapi.NewSqliteDatastore(dbConfig)
 	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
