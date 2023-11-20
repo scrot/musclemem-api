@@ -29,9 +29,9 @@ type SqliteDatastore struct {
 
 // Configuration for SqliteDatastore
 type SqliteDatastoreConfig struct {
+	Logger      *slog.Logger
 	DatabaseURL string
 	Overwrite   bool
-	Logger      *slog.Logger
 }
 
 // NewSqliteDatastore creates a new database at dbURL
@@ -74,7 +74,6 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*SqliteDatastore, error) 
 	}
 
 	return &SqliteDatastore{db, config.Logger}, nil
-
 }
 
 func (s *SqliteDatastore) ExerciseExists(id int) bool {
@@ -109,37 +108,6 @@ func (s *SqliteDatastore) ExerciseExists(id int) bool {
 	return exists
 }
 
-// Exists returns true if the user with id exists
-func (s *SqliteDatastore) Exists(id int) bool {
-	const stmt = `
-  SELECT user_id
-  FROM exercises
-  WHERE id = {{ . }}
-  `
-
-	template, err := tqla.New()
-	if err != nil {
-		return false
-	}
-
-	query, queryArg, err := template.Compile(stmt, id)
-	if err != nil {
-		return false
-	}
-
-	var match int
-	if err := s.QueryRow(query, queryArg...).Scan(&match); err != nil {
-		return false
-	}
-
-	return true
-}
-
-var (
-	ErrInvalidID = errors.New("invalid id")
-	ErrNotFound  = errors.New("not found")
-)
-
 // ExerciseByID returns an exercise from the database if exists
 // otherwise returns NotFound error
 func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
@@ -157,7 +125,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 	)
 
 	if id <= 0 {
-		return Exercise{}, ErrInvalidID
+		return Exercise{}, ErrInvalidIdFormat
 	}
 
 	tmpl, err := tqla.New()
@@ -187,7 +155,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 		&next,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Exercise{}, ErrNotFound
+			return Exercise{}, ErrExerciseNotFound
 		}
 		return Exercise{}, err
 	}
@@ -225,82 +193,51 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 	return e, nil
 }
 
-func (xs *SqliteDatastore) StoreExercise(x Exercise) error {
+// StoreExercise stores the given exrcise in the sqlite database
+// If the id already exists it updates the existing record
+// ErrMissingFields is returned when fields are missing
+func (s *SqliteDatastore) StoreExercise(x Exercise) error {
+	const (
+		insertStmt = `
+    INSERT INTO exercises (owner, workout, name, weight, repetitions)
+    VALUES ({{.Owner}}, {{.Workout}}, {{.Name}}, {{.Weight}}, {{.Repetitions}});
+    `
+		updateStmt = `
+    UPDATE exercises
+    SET name = {{ .Name }}, 
+        weight = {{ .Weight }},
+        repetitions = {{ .Repetitions }}
+    WHERE exercise_id = {{ .ID }}
+    `
+		tailStmt = `
+    SELECT id, name
+    FROM exercises
+    WHERE workout={.Workout} AND previous IS NULL
+    `
+	)
+
 	if (x == Exercise{}) {
-		return ErrEmptyExercise
+		return ErrMissingFields
 	}
 
-	switch {
-	case x.ID == 0:
-		return xs.createExercise(x)
-	default:
-		return xs.overwriteExercise(x)
-
-	}
-}
-
-func (xs *SqliteDatastore) getLastExercise() ExerciseRef {
-	stmt := `
-  SELECT id, name
-  FROM exercises
-  WHERE previous IS NULL
-  `
-
-	row := xs.QueryRow(stmt)
-
-	var ref ExerciseRef
-	row.Scan(&ref.ID, &ref.Name)
-
-	return ref
-}
-
-func (xs *SqliteDatastore) createExercise(x Exercise) error {
-	last := xs.getLastExercise()
-	x.Previous = &last
-
-	template, err := tqla.New()
+	tmpl, err := tqla.New()
 	if err != nil {
 		return err
 	}
 
-	insertExerciseStmt := `
-  INSERT INTO 'exercises' ('id', 'name', 'weight', 'repetitions', 'next', 'previous')
-  VALUES({{ .ID }}, {{ .Name }}, {{ .Weight }}, {{ .Repetitions }}, {{ .Next }}, {{ .Previous.ID}});
-  `
+	if !s.ExerciseExists(x.ID) {
+		if x.Owner <= 0 || x.Workout <= 0 || x.Name == "" || x.Weight <= 0 || x.Repetitions <= 0 {
+			return ErrMissingFields
+		}
+		q, args, err := tmpl.Compile(insertStmt, x)
+		if err != nil {
+			return err
+		}
 
-	insert, insertArgs, err := template.Compile(insertExerciseStmt, x)
-	if err != nil {
-		return err
-	}
-
-	if _, err := xs.Exec(insert, insertArgs...); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (xs *SqliteDatastore) overwriteExercise(x Exercise) error {
-	template, err := tqla.New()
-	if err != nil {
-		return err
-	}
-
-	updateExerciseStmt := `
-  UPDATE exercises
-  SET name = {{ .Name }}, 
-      weight = {{ .Weight }},
-      repetitions = {{ .Repetitions }}
-  WHERE id = {{ .ID }}
-  `
-
-	update, updateArgs, err := template.Compile(updateExerciseStmt, x)
-	if err != nil {
-		return err
-	}
-
-	if _, err := xs.Exec(update, updateArgs...); err != nil {
-		return err
+		_, err = s.Exec(q, args...)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

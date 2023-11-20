@@ -9,15 +9,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/scrot/jsonapi"
+
+	_ "github.com/go-playground/validator/v10"
 )
 
 type Exercise struct {
-	ID          int          `json:"id"`
-	Owner       int          `json:"owner"`
-	Workout     string       `json:"workout"`
-	Name        string       `json:"name"`
-	Weight      float64      `json:"weight"`
-	Repetitions int          `json:"repetitions"`
+	ID          int          `json:"id" validate:"gt=0"`
+	Owner       int          `json:"owner" validate:"required,gt=0"`
+	Workout     int          `json:"workout" validate:"required"`
+	Name        string       `json:"name" validate:"required"`
+	Weight      float64      `json:"weight" validate:"required"`
+	Repetitions int          `json:"repetitions" validate:"required"`
 	Next        *ExerciseRef `json:"next,omitempty"`
 	Previous    *ExerciseRef `json:"previous,omitempty"`
 }
@@ -31,9 +33,7 @@ type ExerciseRef struct {
 	Name string `json:"name"`
 }
 
-var (
-	EmptyJSON = []byte("{}")
-)
+var EmptyJSON = []byte("{}")
 
 var (
 	ErrNoIDProvided     = errors.New("no exercise id provided")
@@ -88,7 +88,6 @@ func (s *Server) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 func FetchSingleExerciseJSON(exercises ExerciseRetreiver, id int) ([]byte, error) {
 	if id == 0 {
 		return EmptyJSON, ErrNoIDProvided
-
 	}
 
 	exercise, err := exercises.ExerciseByID(id)
@@ -105,7 +104,7 @@ func FetchSingleExerciseJSON(exercises ExerciseRetreiver, id int) ([]byte, error
 }
 
 var (
-	ErrEmptyExercise = errors.New("empty exercise")
+	ErrMissingFields = errors.New("fields missing")
 	ErrInvalidJSON   = errors.New("invalid json")
 )
 
@@ -151,6 +150,5 @@ func BatchStoreExerciseJSON(exercises ExerciseStorer, exerciseJSON []byte) error
 }
 
 func storeExercise(exercises ExerciseStorer, exercise Exercise) error {
-
 	return exercises.StoreExercise(exercise)
 }

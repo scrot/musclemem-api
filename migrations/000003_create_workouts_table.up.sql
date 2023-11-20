@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS workouts (
+  workout_id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL
+);

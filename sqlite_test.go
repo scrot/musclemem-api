@@ -13,13 +13,41 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-func TestExerciseById(t *testing.T) {
-	store := newStore(t)
+func TestStoreExercise(t *testing.T) {
+	store := newMockStore(t)
 
 	insertUser(t, User{ID: 1}, store)
+	insertWorkout(t, Workout{ID: 1}, store)
 
-	e1 := Exercise{1, 1, "Benchpress", "Interval", 100.0, 8, nil, nil}
-	e2 := Exercise{2, 1, "Shoulder Press", "Interval", 80.0, 10, nil, nil}
+	e1 := Exercise{1, 1, 1, "Interval", 100.0, 8, nil, nil}
+	e2 := Exercise{2, 1, 1, "Interval", 80.0, 10, nil, nil}
+
+	e1.Next = e2.Ref()
+	e2.Previous = e1.Ref()
+
+	t.Run("ErrorOnEmpty", func(t *testing.T) {
+		var empty Exercise
+		if err := store.StoreExercise(empty); !errors.Is(err, ErrMissingFields) {
+			t.Errorf("expected %q but got %q", ErrMissingFields, err)
+		}
+	})
+
+	t.Run("ErrorOnMissingFields", func(t *testing.T) {
+		missing := Exercise{Owner: 1, Workout: 1}
+		if err := store.StoreExercise(missing); !errors.Is(err, ErrMissingFields) {
+			t.Errorf("expected %q but got %q", ErrMissingFields, err)
+		}
+	})
+}
+
+func TestExerciseById(t *testing.T) {
+	store := newMockStore(t)
+
+	insertUser(t, User{ID: 1}, store)
+	insertWorkout(t, Workout{ID: 1}, store)
+
+	e1 := Exercise{1, 1, 1, "Interval", 100.0, 8, nil, nil}
+	e2 := Exercise{2, 1, 1, "Interval", 80.0, 10, nil, nil}
 
 	e1.Next = e2.Ref()
 	e2.Previous = e1.Ref()
@@ -28,9 +56,9 @@ func TestExerciseById(t *testing.T) {
 	insertExercise(t, e2, store)
 
 	t.Run("ErrorOnNotExist", func(t *testing.T) {
-		e, err := store.ExerciseByID(2)
-		if !errors.Is(err, ErrNotFound) {
-			t.Errorf("expected %q but got %v", ErrNotFound, err)
+		e, err := store.ExerciseByID(3)
+		if !errors.Is(err, ErrExerciseNotFound) {
+			t.Errorf("expected %q but got %q", ErrExerciseNotFound, err)
 		}
 
 		if !cmp.Equal(e, Exercise{}) {
@@ -40,10 +68,8 @@ func TestExerciseById(t *testing.T) {
 
 	t.Run("ErrorOnInvalidId", func(t *testing.T) {
 		e, err := store.ExerciseByID(-1)
-		t.Log(err)
-		if err == nil {
-			t.Log(err)
-			t.Errorf("expected %q but got %v", ErrInvalidID, err)
+		if !errors.Is(err, ErrInvalidIdFormat) {
+			t.Errorf("expected %q but got %q", ErrInvalidIdFormat, err)
 		}
 
 		if !cmp.Equal(e, Exercise{}) {
@@ -51,10 +77,20 @@ func TestExerciseById(t *testing.T) {
 		}
 	})
 
+	t.Run("ExerciseWithRefs", func(t *testing.T) {
+		e, err := store.ExerciseByID(1)
+		if err != nil {
+			t.Errorf("expected no error but got %q", err)
+		}
+
+		if !cmp.Equal(e, e1) {
+			t.Errorf("expected %v but got %v", e1, e)
+		}
+	})
 }
 
 func TestExerciseExists(t *testing.T) {
-	store := newStore(t)
+	store := newMockStore(t)
 
 	insertUser(t, User{ID: 1}, store)
 	insertExercise(t, Exercise{ID: 1}, store)
@@ -73,16 +109,15 @@ func TestExerciseExists(t *testing.T) {
 }
 
 func TestCreateLocalDatabase(t *testing.T) {
-
 	t.Run("PingableOnValidPath", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "test.db")
 		db, err := newLocalDatabase(path)
 		if err != nil {
-			t.Fatalf("expected no error but got %s", err)
+			t.Fatalf("expected no error but got %q", err)
 		}
 
 		if err := db.Ping(); err != nil {
-			t.Fatalf("expected no error but got %s", err)
+			t.Fatalf("expected no error but got %q", err)
 		}
 	})
 
@@ -90,7 +125,7 @@ func TestCreateLocalDatabase(t *testing.T) {
 		path := ""
 		_, err := newLocalDatabase(path)
 		if err == nil {
-			t.Fatalf("expected error but got nil")
+			t.Fatalf("expected error but got none")
 		}
 	})
 
@@ -98,7 +133,7 @@ func TestCreateLocalDatabase(t *testing.T) {
 		path := "///test.db"
 		_, err := newLocalDatabase(path)
 		if err == nil {
-			t.Fatalf("expected error but got nil")
+			t.Fatalf("expected error but got none")
 		}
 	})
 
@@ -110,53 +145,56 @@ func TestCreateLocalDatabase(t *testing.T) {
 			t.Fatalf("expected error but got nil")
 		}
 	})
-
 }
 
 func TestNewSqliteDatastore(t *testing.T) {
 	log := slog.Default()
 	dbURL := fmt.Sprintf("file://%s/%s", t.TempDir(), "test.db")
+	config := SqliteDatastoreConfig{DatabaseURL: dbURL, Overwrite: true, Logger: log}
 
 	t.Run("CreateNewIfNotExisting", func(t *testing.T) {
-		_, err := NewSqliteDatastore(SqliteDatastoreConfig{dbURL, true, log})
+		_, err := NewSqliteDatastore(config)
 		if err != nil {
 			t.Errorf("expected no error but got %s", err)
 		}
 	})
 
 	t.Run("DeleteExistingIfOverwrite", func(t *testing.T) {
-		db, err := NewSqliteDatastore(SqliteDatastoreConfig{dbURL, true, log})
+		db, err := NewSqliteDatastore(config)
 		if err != nil {
 			t.Errorf("expected no error but got %s", err)
 		}
 
 		db.Exec("DROP TABLE IF EXISTS exercises;")
 
-		db, err = NewSqliteDatastore(SqliteDatastoreConfig{dbURL, true, log})
+		config := SqliteDatastoreConfig{DatabaseURL: dbURL, Overwrite: true, Logger: log}
+		db, err = NewSqliteDatastore(config)
 		if err != nil {
 			t.Errorf("expected no error but got %s", err)
 		}
 
-		wantTables := []string{"exercises", "users"}
+		wantTables := []string{"exercises", "users", "workouts"}
 		if gotTables, eq := tablesEqual(t, db.DB, wantTables); !eq {
 			t.Errorf("expected tables %s but got %s", wantTables, gotTables)
 		}
 	})
 
 	t.Run("OpenExistingIfNotOverwrite", func(t *testing.T) {
-		db, err := NewSqliteDatastore(SqliteDatastoreConfig{dbURL, true, log})
+		config := SqliteDatastoreConfig{DatabaseURL: dbURL, Overwrite: true, Logger: log}
+		db, err := NewSqliteDatastore(config)
 		if err != nil {
 			t.Errorf("expected no error but got %s", err)
 		}
 
 		db.Exec("DROP TABLE IF EXISTS exercises;")
 
-		db, err = NewSqliteDatastore(SqliteDatastoreConfig{dbURL, false, log})
+		config = SqliteDatastoreConfig{DatabaseURL: dbURL, Overwrite: false, Logger: log}
+		db, err = NewSqliteDatastore(config)
 		if err != nil {
 			t.Errorf("expected no error but got %s", err)
 		}
 
-		wantTables := []string{"users"}
+		wantTables := []string{"users", "workouts"}
 		if gotTables, eq := tablesEqual(t, db.DB, wantTables); !eq {
 			t.Errorf("expected tables %s but got %s", wantTables, gotTables)
 		}
@@ -181,6 +219,24 @@ func insertUser(t *testing.T, u User, store *SqliteDatastore) {
 	}
 }
 
+func insertWorkout(t *testing.T, w Workout, store *SqliteDatastore) {
+	t.Helper()
+
+	const stmt = `
+    INSERT INTO workouts (workout_id, name)
+    VALUES({{.ID}}, {{.Name}})
+    `
+	tmpl, _ := tqla.New()
+	q, args, err := tmpl.Compile(stmt, w)
+	if err != nil {
+		t.Fatalf("expected no error but got %q", err)
+	}
+
+	if _, err := store.Exec(q, args...); err != nil {
+		t.Fatalf("expected no error but got %q", err)
+	}
+}
+
 func insertExercise(t *testing.T, e Exercise, store *SqliteDatastore) {
 	t.Helper()
 
@@ -201,19 +257,22 @@ func insertExercise(t *testing.T, e Exercise, store *SqliteDatastore) {
 	tmpl, _ := tqla.New()
 	q, args, err := tmpl.Compile(stmt, e)
 	if err != nil {
-		t.Fatalf("expected no error but got %s", err)
+		t.Fatalf("expected no error but got %q", err)
 	}
 
 	if _, err := store.Exec(q, args...); err != nil {
-		t.Fatalf("expected no error but got %s", err)
+		t.Fatalf("expected no error but got %q", err)
 	}
 }
 
-func newStore(t *testing.T) *SqliteDatastore {
+func newMockStore(t *testing.T) *SqliteDatastore {
 	t.Helper()
 
-	path := fmt.Sprintf("file://%s/%s", t.TempDir(), "test.db")
-	store, err := NewSqliteDatastore(SqliteDatastoreConfig{path, true, slog.Default()})
+	log := slog.Default()
+	dbURL := fmt.Sprintf("file://%s/%s", t.TempDir(), "test.db")
+	config := SqliteDatastoreConfig{DatabaseURL: dbURL, Overwrite: false, Logger: log}
+
+	store, err := NewSqliteDatastore(config)
 	if err != nil {
 		t.Fatalf("expected no error but got %s", err)
 	}
