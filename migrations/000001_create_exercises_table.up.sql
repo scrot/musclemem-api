@@ -3,10 +3,10 @@
   owner INTEGER NOT NULL,
   workout INTEGER NOT NULL,
   name TEXT NOT NULL,
-  weight REAL,
-  repetitions INTEGER,
-  next INTEGER,
-  previous INTEGER,
+  weight REAL NOT NULL,
+  repetitions INTEGER NOT NULL,
+  next INTEGER NOT NULL,
+  previous INTEGER NOT NULL,
   FOREIGN KEY (owner)
     REFERENCES users (user_id)
     ON UPDATE CASCADE

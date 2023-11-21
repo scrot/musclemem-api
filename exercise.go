@@ -14,18 +14,18 @@ import (
 )
 
 type Exercise struct {
-	ID          int          `json:"id" validate:"gt=0"`
-	Owner       int          `json:"owner" validate:"required,gt=0"`
-	Workout     int          `json:"workout" validate:"required"`
-	Name        string       `json:"name" validate:"required"`
-	Weight      float64      `json:"weight" validate:"required"`
-	Repetitions int          `json:"repetitions" validate:"required"`
-	Next        *ExerciseRef `json:"next,omitempty"`
-	Previous    *ExerciseRef `json:"previous,omitempty"`
+	ID          int         `json:"id" validate:"gt=0"`
+	Owner       int         `json:"owner" validate:"required,gt=0"`
+	Workout     int         `json:"workout" validate:"required"`
+	Name        string      `json:"name" validate:"required"`
+	Weight      float64     `json:"weight" validate:"required"`
+	Repetitions int         `json:"repetitions" validate:"required"`
+	Next        ExerciseRef `json:"next,omitempty"`
+	Previous    ExerciseRef `json:"previous,omitempty"`
 }
 
-func (e Exercise) Ref() *ExerciseRef {
-	return &ExerciseRef{e.ID, e.Name}
+func (e Exercise) Ref() ExerciseRef {
+	return ExerciseRef{e.ID, e.Name}
 }
 
 type ExerciseRef struct {
@@ -112,7 +112,7 @@ var (
 // an exercises repository
 type ExerciseStorer interface {
 	ExerciseExists(int) bool
-	StoreExercise(Exercise) error
+	StoreExercise(Exercise) (int, error)
 }
 
 // StoreExerciseJSON stores an Exercise formatted as JSON
@@ -126,7 +126,7 @@ func StoreExerciseJSON(exercises ExerciseStorer, exerciseJSON []byte) error {
 		return ErrInvalidJSON
 	}
 
-	return storeExercise(exercises, exercise)
+	return nil
 }
 
 // BatchStoreExerciseJSON stores a list of exercises
@@ -140,15 +140,5 @@ func BatchStoreExerciseJSON(exercises ExerciseStorer, exerciseJSON []byte) error
 		return ErrInvalidJSON
 	}
 
-	for _, exercise := range xs {
-		if err := storeExercise(exercises, exercise); err != nil {
-			return err
-		}
-	}
-
 	return nil
-}
-
-func storeExercise(exercises ExerciseStorer, exercise Exercise) error {
-	return exercises.StoreExercise(exercise)
 }

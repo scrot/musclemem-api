@@ -172,7 +172,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 			return Exercise{}, err
 		}
 
-		e.Previous = &pRef
+		e.Previous = pRef
 	}
 
 	if next != 0 {
@@ -187,7 +187,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 			return Exercise{}, err
 		}
 
-		e.Next = &nRef
+		e.Next = nRef
 	}
 
 	return e, nil
@@ -196,11 +196,11 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 // StoreExercise stores the given exrcise in the sqlite database
 // If the id already exists it updates the existing record
 // ErrMissingFields is returned when fields are missing
-func (s *SqliteDatastore) StoreExercise(x Exercise) error {
+func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 	const (
 		insertStmt = `
-    INSERT INTO exercises (owner, workout, name, weight, repetitions)
-    VALUES ({{.Owner}}, {{.Workout}}, {{.Name}}, {{.Weight}}, {{.Repetitions}});
+    INSERT INTO exercises (owner, workout, name, weight, repetitions, previous, next)
+    VALUES ({{.Owner}}, {{.Workout}}, {{.Name}}, {{.Weight}}, {{.Repetitions}}, {{.Previous.ID}}, {{.Next.ID}});
     `
 		updateStmt = `
     UPDATE exercises
@@ -209,37 +209,166 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) error {
         repetitions = {{ .Repetitions }}
     WHERE exercise_id = {{ .ID }}
     `
-		tailStmt = `
-    SELECT id, name
-    FROM exercises
-    WHERE workout={.Workout} AND previous IS NULL
+		updateNextStmt = `
+    UPDATE exercises
+    SET next = {{ .NextID }}
+    WHERE exercise_id = {{ .ID }}
+    `
+		updatePreviousStmt = `
+    UPDATE exercises
+    SET previous = {{.PreviousID }}   
+    WHERE exercise_id = {{ .ID }}
     `
 	)
 
-	if (x == Exercise{}) {
-		return ErrMissingFields
+	if x.Owner <= 0 || x.Workout <= 0 || x.Name == "" ||
+		x.Weight <= 0 || x.Repetitions <= 0 {
+		return 0, ErrMissingFields
 	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if !s.ExerciseExists(x.ID) {
-		if x.Owner <= 0 || x.Workout <= 0 || x.Name == "" || x.Weight <= 0 || x.Repetitions <= 0 {
-			return ErrMissingFields
-		}
-		q, args, err := tmpl.Compile(insertStmt, x)
+
+		tx, err := s.Begin()
 		if err != nil {
-			return err
+			return 0, nil
+		}
+
+		// get last exercise in workout
+		tail, err := tail(s, x.Owner, x.Workout)
+		if err != nil {
+			return 0, fmt.Errorf("get last exercise: %w", err)
+		}
+
+		// insert new exercise
+		insert, args, err := tmpl.Compile(insertStmt, x)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("insert new exercise (compile): %w", err)
+		}
+
+		res, err := tx.Exec(insert, args...)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("insert new exercise (exec): %w", err)
+		}
+
+		newID, err := res.LastInsertId()
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("insert new exercise (id from res): %w", err)
+		}
+
+		// update references for new
+		updatePreviousData := struct {
+			ID         int
+			PreviousID int
+		}{
+			ID:         int(newID),
+			PreviousID: tail.ID,
+		}
+
+		updateNew, args, err := tmpl.Compile(updatePreviousStmt, updatePreviousData)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("update ref for n-1 (compile): %w", err)
+		}
+
+		_, err = tx.Exec(updateNew, args...)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("update ref for n-1 (exec): %w", err)
+		}
+
+		// update references for (previous) tail
+		updateNextData := struct {
+			ID     int
+			NextID int
+		}{
+			ID:     tail.ID,
+			NextID: int(newID),
+		}
+
+		updateLast, args, err := tmpl.Compile(updateNextStmt, updateNextData)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("update ref for n (compile): %w", err)
+		}
+
+		_, err = tx.Exec(updateLast, args...)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("update ref for n (exec): %w", err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return 0, fmt.Errorf("commit new exercise transaction: %w", err)
+		}
+
+		return int(newID), nil
+
+	} else {
+		q, args, err := tmpl.Compile(updateStmt, x)
+		if err != nil {
+			return 0, err
 		}
 
 		_, err = s.Exec(q, args...)
 		if err != nil {
-			return err
+			return 0, err
 		}
+
+		return x.ID, nil
+	}
+}
+
+func tail(s *SqliteDatastore, owner, workout int) (Exercise, error) {
+	const (
+		tailStmt = `
+    SELECT exercise_id   
+    FROM exercises
+    WHERE owner={{.Owner}} AND workout={{.Workout}} AND next=0
+    `
+	)
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return Exercise{}, err
 	}
 
+	data := struct {
+		Owner   int
+		Workout int
+	}{owner, workout}
+
+	tail, args, err := tmpl.Compile(tailStmt, data)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("get tail id (compile): %w", err)
+	}
+
+	var tailID int
+
+	err = s.QueryRow(tail, args...).Scan(&tailID)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("get tail id (query): %w", err)
+	}
+
+	tailExercise, err := s.ExerciseByID(tailID)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("get tail exercise: %w", err)
+	}
+	return tailExercise, nil
+}
+
+func updateExercise(s *SqliteDatastore, id int, name string, weight float64, repetitions int) error {
+	return nil
+}
+
+func updateReferences(s *SqliteDatastore, id, next, previous int) error {
 	return nil
 }
 
