@@ -58,17 +58,17 @@ type Retreiver interface {
 	// from the exercises repository if it exists
 	ExerciseByID(int) (Exercise, error)
 
-	// ExercisesByWorkoutID takes an workout id and returns all
+	// ExercisesByWorkoutID takes a owner and workout id and returns all
 	// exercises from the repository that belong to it
-	ExercisesByWorkoutID(int) ([]Exercise, error)
+	ExercisesByWorkoutID(int, int) ([]Exercise, error)
 }
 
 var EmptyJSON = []byte("{}")
 
 var (
-	ErrNoIDProvided     = errors.New("no exercise id provided")
-	ErrInvalidIdFormat  = errors.New("id incorrectly formatted")
-	ErrExerciseNotFound = errors.New("exercise not found")
+	ErrNoID            = errors.New("no exercise id provided")
+	ErrInvalidIdFormat = errors.New("id incorrectly formatted")
+	ErrNotFound        = errors.New("exercise not found")
 )
 
 // FetchSingleExerciseJSON takes a exercise repository and an id and returns
@@ -76,7 +76,7 @@ var (
 // if no exercise with that id is found an ErrExerciseNotFound is returned
 func FetchSingleExerciseJSON(exercises Retreiver, id int) ([]byte, error) {
 	if id == 0 {
-		return EmptyJSON, ErrNoIDProvided
+		return EmptyJSON, ErrNoID
 	}
 
 	exercise, err := exercises.ExerciseByID(id)

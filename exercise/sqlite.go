@@ -156,7 +156,7 @@ func (ds *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 		&next,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Exercise{}, ErrExerciseNotFound
+			return Exercise{}, ErrNotFound
 		}
 		return Exercise{}, err
 	}
@@ -194,9 +194,86 @@ func (ds *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 	return e, nil
 }
 
-// TODO: Implement
-func (ds *SqliteDatastore) ExercisesByWorkoutID(id int) ([]Exercise, error) {
-	return []Exercise{}, nil
+// ExercisesByWorkoutID returns all exercises part of a workout
+// given a owner and workout id pair
+func (ds *SqliteDatastore) ExercisesByWorkoutID(uid int, wid int) ([]Exercise, error) {
+	const (
+		selectStmt = `
+    SELECT exercise_id, owner, workout, name, weight, repetitions, previous, next
+    FROM exercises
+    WHERE owner = {{ .OwnerID }} AND workout = {{ .WorkoutID }}
+    `
+		selectRefsStmt = `
+    SELECT exercise_id, name
+    FROM exercises
+    WHERE exercise_id = {{.}}
+    `
+	)
+
+	if uid == 0 || wid == 0 {
+		return []Exercise{}, ErrNoID
+	}
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return []Exercise{}, err
+	}
+
+	data := struct {
+		OwnerID   int
+		WorkoutID int
+	}{uid, wid}
+
+	q, args, err := tmpl.Compile(selectStmt, data)
+	if err != nil {
+		return []Exercise{}, err
+	}
+
+	rs, err := ds.Query(q, args...)
+	if err != nil {
+		return []Exercise{}, err
+	}
+
+	var xs []Exercise
+	for rs.Next() {
+		var (
+			x          Exercise
+			prev, next int
+		)
+
+		rs.Scan(&x.ID, &x.Owner, &x.Workout, &x.Weight,
+			&x.Repetitions, &prev, &next)
+
+		if x.Previous.ID != 0 {
+			q, args, err := tmpl.Compile(selectRefsStmt, x.Previous.ID)
+			if err != nil {
+				return []Exercise{}, err
+			}
+
+			if err := ds.QueryRow(q, args...).Scan(&x.Previous.ID, &x.Previous.Name); err != nil {
+				return []Exercise{}, err
+			}
+		}
+
+		if x.Next.ID != 0 {
+			q, args, err := tmpl.Compile(selectRefsStmt, x.Next.ID)
+			if err != nil {
+				return []Exercise{}, err
+			}
+
+			if err := ds.QueryRow(q, args...).Scan(&x.Next.ID, &x.Next.Name); err != nil {
+				return []Exercise{}, err
+			}
+		}
+
+		xs = append(xs, x)
+	}
+
+	if len(xs) == 0 {
+		return []Exercise{}, ErrNotFound
+	}
+
+	return xs, nil
 }
 
 // StoreExercise stores the given exrcise in the sqlite database

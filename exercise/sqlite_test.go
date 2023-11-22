@@ -13,6 +13,142 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
+func TestExerciseById(t *testing.T) {
+	store := newMockDatastore(t)
+	store.withUser(t, User{ID: 1})
+	store.withWorkout(t, Workout{ID: 1})
+
+	e1 := Exercise{1, 1, 1, "Interval", 100.0, 8, ExerciseRef{}, ExerciseRef{}}
+	e2 := Exercise{2, 1, 1, "Interval", 80.0, 10, ExerciseRef{}, ExerciseRef{}}
+
+	e1.Next = e2.Ref()
+	e2.Previous = e1.Ref()
+
+	store.withExercise(t, e1)
+	store.withExercise(t, e2)
+
+	t.Run("ErrorOnNotExist", func(t *testing.T) {
+		e, err := store.ExerciseByID(3)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected %q but got %q", ErrNotFound, err)
+		}
+
+		if !cmp.Equal(e, Exercise{}) {
+			t.Errorf("expected Exercise{} but got %v", e)
+		}
+	})
+
+	t.Run("ErrorOnInvalidId", func(t *testing.T) {
+		e, err := store.ExerciseByID(-1)
+		if !errors.Is(err, ErrInvalidIdFormat) {
+			t.Errorf("expected %q but got %q", ErrInvalidIdFormat, err)
+		}
+
+		if !cmp.Equal(e, Exercise{}) {
+			t.Errorf("expected Exercise{} but got %v", e)
+		}
+	})
+
+	t.Run("ExerciseWithRefs", func(t *testing.T) {
+		e, err := store.ExerciseByID(1)
+		if err != nil {
+			t.Errorf("expected no error but got %q", err)
+		}
+
+		if !cmp.Equal(e, e1) {
+			t.Errorf("expected %v but got %v", e1, e)
+		}
+	})
+}
+
+func TestExercisesByWorkout(t *testing.T) {
+	store := newMockDatastore(t)
+	store.withUser(t, User{ID: 1})
+	store.withWorkout(t, Workout{ID: 1})
+
+	e1 := Exercise{1, 1, 1, "Interval", 100.0, 8, ExerciseRef{}, ExerciseRef{}}
+	e2 := Exercise{2, 1, 1, "Interval", 80.0, 10, ExerciseRef{}, ExerciseRef{}}
+	e3 := Exercise{3, 1, 1, "Interval", 80.0, 10, ExerciseRef{}, ExerciseRef{}}
+
+	e1.Next = e2.Ref()
+	e2.Previous = e1.Ref()
+	e2.Next = e3.Ref()
+	e3.Previous = e2.Ref()
+
+	store.withExercise(t, e1)
+	store.withExercise(t, e2)
+	store.withExercise(t, e3)
+
+	t.Run("ErrorInvalidID", func(t *testing.T) {
+		xs, err := store.ExercisesByWorkoutID(0, 0)
+		if err == nil {
+			t.Errorf("expected %q but got nil", ErrNoID)
+		}
+		if len(xs) != 0 {
+			t.Errorf("expected empty list but got %v", xs)
+		}
+	})
+
+	t.Run("ErrorNotFound", func(t *testing.T) {
+		xs, err := store.ExercisesByWorkoutID(1, 2)
+		if err == nil {
+			t.Errorf("expected %q but got nil", ErrNotFound)
+		}
+		if len(xs) != 0 {
+			t.Errorf("expected empty list but got %v", xs)
+		}
+	})
+
+	t.Run("ListOnValidWorkout", func(t *testing.T) {
+		xs, err := store.ExercisesByWorkoutID(1, 1)
+		if err != nil {
+			t.Errorf("expected no error but got %q", err)
+		}
+		if len(xs) != 3 {
+			t.Errorf("expected %d exercises but got %d", 3, len(xs))
+		}
+	})
+}
+
+func TestCreateLocalDatabase(t *testing.T) {
+	t.Run("PingableOnValidPath", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "test.db")
+		db, err := newLocalDatabase(path)
+		if err != nil {
+			t.Fatalf("expected no error but got %q", err)
+		}
+
+		if err := db.Ping(); err != nil {
+			t.Fatalf("expected no error but got %q", err)
+		}
+	})
+
+	t.Run("ErrOnEmptyPath", func(t *testing.T) {
+		path := ""
+		_, err := newLocalDatabase(path)
+		if err == nil {
+			t.Fatalf("expected error but got none")
+		}
+	})
+
+	t.Run("ErrOnInvalidPath", func(t *testing.T) {
+		path := "///test.db"
+		_, err := newLocalDatabase(path)
+		if err == nil {
+			t.Fatalf("expected error but got none")
+		}
+	})
+
+	t.Run("ErrOnURL", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "test.db")
+		url := "sqlite3://" + path
+		_, err := newLocalDatabase(url)
+		if err == nil {
+			t.Fatalf("expected error but got nil")
+		}
+	})
+}
+
 func TestStore(t *testing.T) {
 	t.Run("ErrorOnEmpty", func(t *testing.T) {
 		store := newMockDatastore(t)
@@ -97,93 +233,6 @@ func TestStore(t *testing.T) {
 
 		if e.Previous.ID != 1 {
 			t.Errorf("previous of n-1 refers to %d but expected 1", e.Previous.ID)
-		}
-	})
-}
-
-func TestExerciseById(t *testing.T) {
-	store := newMockDatastore(t)
-	store.withUser(t, User{ID: 1})
-	store.withWorkout(t, Workout{ID: 1})
-
-	e1 := Exercise{1, 1, 1, "Interval", 100.0, 8, ExerciseRef{}, ExerciseRef{}}
-	e2 := Exercise{2, 1, 1, "Interval", 80.0, 10, ExerciseRef{}, ExerciseRef{}}
-
-	e1.Next = e2.Ref()
-	e2.Previous = e1.Ref()
-
-	store.withExercise(t, e1)
-	store.withExercise(t, e2)
-
-	t.Run("ErrorOnNotExist", func(t *testing.T) {
-		e, err := store.ExerciseByID(3)
-		if !errors.Is(err, ErrExerciseNotFound) {
-			t.Errorf("expected %q but got %q", ErrExerciseNotFound, err)
-		}
-
-		if !cmp.Equal(e, Exercise{}) {
-			t.Errorf("expected Exercise{} but got %v", e)
-		}
-	})
-
-	t.Run("ErrorOnInvalidId", func(t *testing.T) {
-		e, err := store.ExerciseByID(-1)
-		if !errors.Is(err, ErrInvalidIdFormat) {
-			t.Errorf("expected %q but got %q", ErrInvalidIdFormat, err)
-		}
-
-		if !cmp.Equal(e, Exercise{}) {
-			t.Errorf("expected Exercise{} but got %v", e)
-		}
-	})
-
-	t.Run("ExerciseWithRefs", func(t *testing.T) {
-		e, err := store.ExerciseByID(1)
-		if err != nil {
-			t.Errorf("expected no error but got %q", err)
-		}
-
-		if !cmp.Equal(e, e1) {
-			t.Errorf("expected %v but got %v", e1, e)
-		}
-	})
-}
-
-func TestCreateLocalDatabase(t *testing.T) {
-	t.Run("PingableOnValidPath", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "test.db")
-		db, err := newLocalDatabase(path)
-		if err != nil {
-			t.Fatalf("expected no error but got %q", err)
-		}
-
-		if err := db.Ping(); err != nil {
-			t.Fatalf("expected no error but got %q", err)
-		}
-	})
-
-	t.Run("ErrOnEmptyPath", func(t *testing.T) {
-		path := ""
-		_, err := newLocalDatabase(path)
-		if err == nil {
-			t.Fatalf("expected error but got none")
-		}
-	})
-
-	t.Run("ErrOnInvalidPath", func(t *testing.T) {
-		path := "///test.db"
-		_, err := newLocalDatabase(path)
-		if err == nil {
-			t.Fatalf("expected error but got none")
-		}
-	})
-
-	t.Run("ErrOnURL", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "test.db")
-		url := "sqlite3://" + path
-		_, err := newLocalDatabase(url)
-		if err == nil {
-			t.Fatalf("expected error but got nil")
 		}
 	})
 }
@@ -279,7 +328,7 @@ func (ds *MockDatastore) withExercise(t *testing.T, e Exercise) {
 	}
 }
 
-func tablesEqual(t *testing.T, db *sql.DB, wantTables []string) ([]string, bool) {
+func (ds *MockDatastore) tablesEqual(t *testing.T, wantTables []string) ([]string, bool) {
 	t.Helper()
 
 	const stmt = `
@@ -293,7 +342,7 @@ func tablesEqual(t *testing.T, db *sql.DB, wantTables []string) ([]string, bool)
     name NOT LIKE 'sqlite_%';
   `
 
-	rows, err := db.Query(stmt)
+	rows, err := ds.db.Query(stmt)
 	if err != nil {
 		t.Fatalf("expected no error but got %s", err)
 	}
