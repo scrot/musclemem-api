@@ -14,20 +14,20 @@ import (
 func (a *API) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "exerciseID")
 
-	a.logger.Debug("new single exercise request", "id", idParam, "path", r.URL.Path)
+	a.Logger.Debug("new single exercise request", "id", idParam, "path", r.URL.Path)
 
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		msg := fmt.Sprintf("%d not a valid id: %s", id, err)
-		a.logger.Error(msg)
+		a.Logger.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 
 	}
 
-	e, err := FetchSingleExerciseJSON(*a.store, id)
+	e, err := FetchSingleExerciseJSON(*a.Store, id)
 	if err != nil {
 		msg := fmt.Errorf("exercise retrieval error: %w", err).Error()
-		a.logger.Error(msg)
+		a.Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
@@ -38,7 +38,7 @@ func (a *API) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := w.Write(e); err != nil {
 		msg := fmt.Errorf("exercise response error: %w", err).Error()
-		a.logger.Error(msg)
+		a.Logger.Error(msg)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

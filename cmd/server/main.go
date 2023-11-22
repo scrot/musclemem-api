@@ -8,13 +8,16 @@ import (
 	"github.com/caarlos0/env/v9"
 	"github.com/lmittmann/tint"
 	musclememapi "github.com/scrot/musclemem-api"
+	"github.com/scrot/musclemem-api/exercise"
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
-var date string
-var commit string
-var version string
-var maintainer string
+var (
+	date       string
+	commit     string
+	version    string
+	maintainer string
+)
 
 func main() {
 	opts := &tint.Options{
@@ -36,19 +39,20 @@ func main() {
 	}
 
 	// Setup database connections
-	dbConfig := musclememapi.SqliteDatastoreConfig{
+	dbConfig := exercise.SqliteDatastoreConfig{
 		DatabaseURL: "file://musclemem.db",
 		Overwrite:   false,
 		Logger:      nil,
 	}
 
-	store, err := musclememapi.NewSqliteDatastore(dbConfig)
+	store, err := exercise.NewSqliteDatastore(dbConfig)
 	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
 
-	server := musclememapi.NewServer(cfg, log, store)
+	exerciseAPI := exercise.API{Logger: log, Store: &store}
+	server := musclememapi.NewServer(cfg, log, exerciseAPI)
 	server.Start()
 }
 

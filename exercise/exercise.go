@@ -9,8 +9,8 @@ import (
 )
 
 type API struct {
-	logger *slog.Logger
-	store  *Datastore
+	Logger *slog.Logger
+	Store  *Datastore
 }
 
 type Datastore interface {
@@ -29,6 +29,17 @@ type (
 		Repetitions int         `json:"repetitions" validate:"required"`
 		Next        ExerciseRef `json:"next,omitempty"`
 		Previous    ExerciseRef `json:"previous,omitempty"`
+	}
+
+	User struct {
+		ID       int
+		Email    string
+		Password string
+	}
+
+	Workout struct {
+		ID   int
+		Name string
 	}
 
 	ExerciseRef struct {
@@ -91,12 +102,12 @@ type Storer interface {
 	// StoreExercise stores an exercise at the tail,
 	// updating the references and returns its id.
 	// it overwrites the exercise if it already exists
-	StoreExercise(Exercise) (int, error)
+	Store(Exercise) (int, error)
 
 	// DeleteExercise deletes an exercise if exists
 	// updates the references of the previous and next
 	// exercise
-	DeleteExercise(int) error
+	Delete(int) error
 }
 
 // StoreExerciseJSON stores an Exercise formatted as JSON
@@ -110,7 +121,7 @@ func StoreExerciseJSON(exercises Storer, exerciseJSON []byte) error {
 		return ErrInvalidJSON
 	}
 
-	exercises.StoreExercise(e)
+	exercises.Store(e)
 
 	return nil
 }
@@ -119,5 +130,5 @@ func StoreExerciseJSON(exercises Storer, exerciseJSON []byte) error {
 // exercises in the repository
 type Orderer interface {
 	// SwapExercises swaps the position of two exercises
-	SwapExercises(int, int) error
+	Swap(int, int) error
 }

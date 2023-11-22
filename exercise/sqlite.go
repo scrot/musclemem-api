@@ -29,15 +29,16 @@ type SqliteDatastore struct {
 
 // Configuration for SqliteDatastore
 type SqliteDatastoreConfig struct {
-	Logger      *slog.Logger
-	DatabaseURL string
-	Overwrite   bool
+	Logger       *slog.Logger
+	DatabaseURL  string
+	MigrationURL string
+	Overwrite    bool
 }
 
 // NewSqliteDatastore creates a new database at dbURL
 // and runs the migrations in the defaultMigrations folder
 // if overwrite is false, it returns the existing db
-func NewSqliteDatastore(config SqliteDatastoreConfig) (*SqliteDatastore, error) {
+func NewSqliteDatastore(config SqliteDatastoreConfig) (Datastore, error) {
 	log := config.Logger
 
 	var db *sql.DB
@@ -58,7 +59,7 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*SqliteDatastore, error) 
 		}
 		log.Debug("new database created", "db-url", config.DatabaseURL)
 
-		if err := migrateSchema(defaultMigrationsURL, db); err != nil {
+		if err := migrateSchema(config.MigrationURL, db); err != nil {
 			log.Error(fmt.Sprintf("running schema migrations %s against %s: %s", defaultMigrationsURL, path, err))
 			return nil, err
 		}
@@ -76,7 +77,7 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*SqliteDatastore, error) 
 	return &SqliteDatastore{db, config.Logger}, nil
 }
 
-func (s *SqliteDatastore) ExerciseExists(id int) bool {
+func (s *SqliteDatastore) Exists(id int) bool {
 	log := s.Logger
 
 	stmt := `
@@ -110,7 +111,7 @@ func (s *SqliteDatastore) ExerciseExists(id int) bool {
 
 // ExerciseByID returns an exercise from the database if exists
 // otherwise returns NotFound error
-func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
+func (ds *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 	const (
 		stmt = `
     SELECT exercise_id, owner, workout, name, weight, repetitions, previous, next
@@ -144,7 +145,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 		next int
 	)
 
-	if err := s.QueryRow(q, args...).Scan(
+	if err := ds.QueryRow(q, args...).Scan(
 		&e.ID,
 		&e.Owner,
 		&e.Workout,
@@ -168,7 +169,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 			return Exercise{}, err
 		}
 
-		if err := s.QueryRow(q, args...).Scan(&pRef.ID, &pRef.Name); err != nil {
+		if err := ds.QueryRow(q, args...).Scan(&pRef.ID, &pRef.Name); err != nil {
 			return Exercise{}, err
 		}
 
@@ -183,7 +184,7 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 			return Exercise{}, err
 		}
 
-		if err := s.QueryRow(q, args...).Scan(&nRef.ID, &nRef.Name); err != nil {
+		if err := ds.QueryRow(q, args...).Scan(&nRef.ID, &nRef.Name); err != nil {
 			return Exercise{}, err
 		}
 
@@ -193,10 +194,15 @@ func (s *SqliteDatastore) ExerciseByID(id int) (Exercise, error) {
 	return e, nil
 }
 
+// TODO: Implement
+func (ds *SqliteDatastore) ExercisesByWorkoutID(id int) ([]Exercise, error) {
+	return []Exercise{}, nil
+}
+
 // StoreExercise stores the given exrcise in the sqlite database
 // If the id already exists it updates the existing record
 // ErrMissingFields is returned when fields are missing
-func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
+func (ds *SqliteDatastore) Store(x Exercise) (int, error) {
 	const (
 		insertStmt = `
     INSERT INTO exercises (owner, workout, name, weight, repetitions, previous, next)
@@ -234,12 +240,12 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 	switch {
 	case x.ID == 0:
 		// get last exercise in workout
-		tail, err := tail(s, x.Owner, x.Workout)
+		tail, err := tail(ds, x.Owner, x.Workout)
 		if err != nil {
 			return 0, fmt.Errorf("get last exercise: %w", err)
 		}
 
-		tx, err := s.Begin()
+		tx, err := ds.Begin()
 		if err != nil {
 			return 0, nil
 		}
@@ -311,13 +317,13 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 
 		return int(newID), nil
 
-	case s.ExerciseExists(x.ID):
+	case ds.Exists(x.ID):
 		q, args, err := tmpl.Compile(updateStmt, x)
 		if err != nil {
 			return 0, err
 		}
 
-		_, err = s.Exec(q, args...)
+		_, err = ds.Exec(q, args...)
 		if err != nil {
 			return 0, err
 		}
@@ -372,6 +378,16 @@ func updateExercise(s *SqliteDatastore, id int, name string, weight float64, rep
 }
 
 func updateReferences(s *SqliteDatastore, id, next, previous int) error {
+	return nil
+}
+
+// TODO: Implement
+func (ds *SqliteDatastore) Delete(id int) error {
+	return nil
+}
+
+// TODO: Implement
+func (ds *SqliteDatastore) Swap(i int, j int) error {
 	return nil
 }
 
