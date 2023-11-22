@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/scrot/musclemem-api/exercise"
 )
 
 type (
 	Server struct {
-		config ServerConfig
-		logger *slog.Logger
-		store  Datastore
+		config    ServerConfig
+		logger    *slog.Logger
+		exercises exercise.API
 	}
 
 	ServerConfig struct {
@@ -30,18 +31,13 @@ type (
 		Environment     string `env:"ENVIRONMENT" envDefault:"development"`
 		ShutdownTimeout string `env:"SHUTDOWN_TIMEOUT" envDefault:"3s"`
 	}
-
-	Datastore interface {
-		ExerciseRetreiver
-		ExerciseStorer
-	}
 )
 
-func NewServer(cfg ServerConfig, logger *slog.Logger, store Datastore) *Server {
+func NewServer(cfg ServerConfig, logger *slog.Logger, exercises exercise.API) *Server {
 	return &Server{
 		cfg,
 		logger,
-		store,
+		exercises,
 	}
 }
 
@@ -49,7 +45,7 @@ func (s *Server) Routes() http.Handler {
 	router := chi.NewRouter()
 
 	router.MethodFunc(http.MethodGet, "/health", s.HandleHealth)
-	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.HandleSingleExercise)
+	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.exercises.HandleSingleExercise)
 
 	return router
 }

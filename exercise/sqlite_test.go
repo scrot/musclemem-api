@@ -1,4 +1,4 @@
-package musclememapi
+package exercise
 
 import (
 	"database/sql"

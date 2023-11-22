@@ -1,4 +1,4 @@
-package musclememapi
+package exercise
 
 import (
 	"database/sql"
@@ -231,17 +231,17 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 		return 0, err
 	}
 
-	if !s.ExerciseExists(x.ID) {
-
-		tx, err := s.Begin()
-		if err != nil {
-			return 0, nil
-		}
-
+	switch {
+	case x.ID == 0:
 		// get last exercise in workout
 		tail, err := tail(s, x.Owner, x.Workout)
 		if err != nil {
 			return 0, fmt.Errorf("get last exercise: %w", err)
+		}
+
+		tx, err := s.Begin()
+		if err != nil {
+			return 0, nil
 		}
 
 		// insert new exercise
@@ -263,7 +263,7 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 			return 0, fmt.Errorf("insert new exercise (id from res): %w", err)
 		}
 
-		// update references for new
+		// update previous for tail
 		updatePreviousData := struct {
 			ID         int
 			PreviousID int
@@ -284,7 +284,7 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 			return 0, fmt.Errorf("update ref for n-1 (exec): %w", err)
 		}
 
-		// update references for (previous) tail
+		// update next for tail-1
 		updateNextData := struct {
 			ID     int
 			NextID int
@@ -311,7 +311,7 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 
 		return int(newID), nil
 
-	} else {
+	case s.ExerciseExists(x.ID):
 		q, args, err := tmpl.Compile(updateStmt, x)
 		if err != nil {
 			return 0, err
@@ -323,6 +323,9 @@ func (s *SqliteDatastore) StoreExercise(x Exercise) (int, error) {
 		}
 
 		return x.ID, nil
+
+	default:
+		return 0, fmt.Errorf("id provided but exercise not found")
 	}
 }
 
