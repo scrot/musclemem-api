@@ -1,8 +1,7 @@
-package musclememapi
+package internal
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,14 +10,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/scrot/musclemem-api/exercise"
+	"github.com/scrot/musclemem-api/internal/exercise"
 )
 
 type (
 	Server struct {
 		config    ServerConfig
 		logger    *slog.Logger
-		exercises exercise.API
+		exercises exercise.Service
 	}
 
 	ServerConfig struct {
@@ -33,7 +32,7 @@ type (
 	}
 )
 
-func NewServer(cfg ServerConfig, logger *slog.Logger, exercises exercise.API) *Server {
+func NewServer(cfg ServerConfig, logger *slog.Logger, exercises exercise.Service) *Server {
 	return &Server{
 		cfg,
 		logger,
@@ -46,6 +45,7 @@ func (s *Server) Routes() http.Handler {
 
 	router.MethodFunc(http.MethodGet, "/health", s.HandleHealth)
 	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.exercises.HandleSingleExercise)
+	router.MethodFunc(http.MethodPost, "/exercises/", s.exercises.HandleNewExercise)
 
 	return router
 }
@@ -54,7 +54,7 @@ func (s *Server) Start() {
 	ctx := context.Background()
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf("%s", s.config.URL),
+		Addr:         s.config.URL,
 		Handler:      s.Routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,

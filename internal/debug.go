@@ -1,4 +1,4 @@
-package musclememapi
+package internal
 
 import (
 	"fmt"
