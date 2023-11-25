@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
-	"path/filepath"
 	"testing"
 
 	"github.com/VauntDev/tqla"
@@ -15,7 +13,7 @@ import (
 	"github.com/scrot/musclemem-api/internal/user"
 )
 
-func TestExerciseById(t *testing.T) {
+func TestExercisesWithID(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
 	xs.withWorkout(t, Workout{ID: 1})
@@ -63,7 +61,7 @@ func TestExerciseById(t *testing.T) {
 	})
 }
 
-func TestExercisesByWorkout(t *testing.T) {
+func TestExercisesFromWorkout(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
 	xs.withWorkout(t, Workout{ID: 1})
@@ -138,6 +136,24 @@ func TestStore(t *testing.T) {
 
 		if _, err := xs.Store(missing); !errors.Is(err, ErrMissingFields) {
 			t.Errorf("expected %q but got %q", ErrMissingFields, err)
+		}
+	})
+
+	t.Run("InsertWithInvalidWorkout", func(t *testing.T) {
+		xs := newMockExercises(t)
+		xs.withUser(t, user.User{ID: 1})
+		xs.withWorkout(t, Workout{ID: 1})
+
+		newExercise := Exercise{
+			Owner:       1,
+			Workout:     2,
+			Name:        "Interval",
+			Weight:      80.0,
+			Repetitions: 10,
+		}
+
+		if _, err := xs.Store(newExercise); err == nil {
+			t.Errorf("expected error but got %q", err)
 		}
 	})
 
@@ -264,45 +280,6 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func TestCreateLocalDatabase(t *testing.T) {
-	t.Run("PingableOnValidPath", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "test.db")
-		db, err := newLocalDatabase(path)
-		if err != nil {
-			t.Fatalf("expected no error but got %q", err)
-		}
-
-		if err := db.Ping(); err != nil {
-			t.Fatalf("expected no error but got %q", err)
-		}
-	})
-
-	t.Run("ErrOnEmptyPath", func(t *testing.T) {
-		path := ""
-		_, err := newLocalDatabase(path)
-		if err == nil {
-			t.Fatalf("expected error but got none")
-		}
-	})
-
-	t.Run("ErrOnInvalidPath", func(t *testing.T) {
-		path := "///test.db"
-		_, err := newLocalDatabase(path)
-		if err == nil {
-			t.Fatalf("expected error but got none")
-		}
-	})
-
-	t.Run("ErrOnURL", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "test.db")
-		url := "sqlite3://" + path
-		_, err := newLocalDatabase(url)
-		if err == nil {
-			t.Fatalf("expected error but got nil")
-		}
-	})
-}
-
 type MockDatastore struct {
 	Exercises
 	db *sql.DB
@@ -313,7 +290,12 @@ func newMockExercises(t *testing.T) *MockDatastore {
 
 	dbURL := fmt.Sprintf("file://%s/%s", t.TempDir(), "test.db")
 	mURL := "file://../../migrations"
-	config := SqliteDatastoreConfig{slog.Default(), dbURL, mURL, true}
+	config := SqliteDatastoreConfig{
+		DatabaseURL:        dbURL,
+		MigrationURL:       mURL,
+		Overwrite:          true,
+		ForeignKeyEnforced: true,
+	}
 
 	store, err := NewSqliteDatastore(config)
 	if err != nil {
