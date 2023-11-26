@@ -13,12 +13,13 @@ import (
 	"github.com/scrot/musclemem-api/internal"
 	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/scrot/musclemem-api/internal/user"
+	"github.com/scrot/musclemem-api/internal/workout"
 )
 
 func TestExercisesWithID(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
-	xs.withWorkout(t, exercise.Workout{ID: 1})
+	xs.withWorkout(t, workout.Workout{ID: 1})
 
 	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
@@ -66,7 +67,7 @@ func TestExercisesWithID(t *testing.T) {
 func TestExercisesFromWorkout(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
-	xs.withWorkout(t, exercise.Workout{ID: 1})
+	xs.withWorkout(t, workout.Workout{ID: 1})
 
 	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
@@ -120,7 +121,7 @@ func TestStore(t *testing.T) {
 	t.Run("ErrorOnEmpty", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, exercise.Workout{ID: 1})
+		xs.withWorkout(t, workout.Workout{ID: 1})
 
 		var empty exercise.Exercise
 
@@ -132,7 +133,7 @@ func TestStore(t *testing.T) {
 	t.Run("ErrorOnMissingFields", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, exercise.Workout{ID: 1})
+		xs.withWorkout(t, workout.Workout{ID: 1})
 
 		missing := exercise.Exercise{Owner: 1, Workout: 1}
 
@@ -144,7 +145,7 @@ func TestStore(t *testing.T) {
 	t.Run("InsertWithInvalidWorkout", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, exercise.Workout{ID: 1})
+		xs.withWorkout(t, workout.Workout{ID: 1})
 
 		newExercise := exercise.Exercise{
 			Owner:       1,
@@ -167,7 +168,7 @@ func TestStore(t *testing.T) {
 	t.Run("InsertFirstExercise", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, exercise.Workout{ID: 1})
+		xs.withWorkout(t, workout.Workout{ID: 1})
 
 		newExercise := exercise.Exercise{
 			Owner:       1,
@@ -190,7 +191,7 @@ func TestStore(t *testing.T) {
 	t.Run("InsertAndUpdateRefs", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, exercise.Workout{ID: 1})
+		xs.withWorkout(t, workout.Workout{ID: 1})
 
 		e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 		e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
@@ -253,7 +254,7 @@ func TestStore(t *testing.T) {
 func TestDelete(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
-	xs.withWorkout(t, exercise.Workout{ID: 1})
+	xs.withWorkout(t, workout.Workout{ID: 1})
 	xs.withExercise(t, exercise.Exercise{ID: 1, Owner: 1, Workout: 1})
 
 	cs := []struct {
@@ -336,7 +337,7 @@ func (ds *mockExercises) withUser(t *testing.T, u user.User) {
 	}
 }
 
-func (ds *mockExercises) withWorkout(t *testing.T, w exercise.Workout) {
+func (ds *mockExercises) withWorkout(t *testing.T, w workout.Workout) {
 	t.Helper()
 
 	const stmt = `

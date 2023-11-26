@@ -5,3 +5,7 @@ type User struct {
 	Email    string
 	Password string
 }
+
+type Registerer interface {
+	Register(email, password string) bool
+}

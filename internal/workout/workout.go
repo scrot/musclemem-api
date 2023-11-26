@@ -1,4 +1,4 @@
-package exercise
+package workout
 
 type Workout struct {
 	ID   int

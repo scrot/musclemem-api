@@ -45,7 +45,6 @@ func NewServer(l *slog.Logger, listenAddr string) (*Server, error) {
 func (s *Server) Routes() http.Handler {
 	router := chi.NewRouter()
 
-	router.MethodFunc(http.MethodGet, "/health", s.HandleHealth)
 	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.exercises.HandleSingleExercise)
 	router.MethodFunc(http.MethodPost, "/exercises/", s.exercises.HandleNewExercise)
 
@@ -63,7 +62,9 @@ func (s *Server) Start() {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	s.logger.Info("starting api server", "addr", srv.Addr, "env", "cpus", runtime.GOMAXPROCS(0))
+	procs := runtime.GOMAXPROCS(0)
+	s.logger.Info("starting api server", "addr", srv.Addr, "cpus", procs)
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			switch err {

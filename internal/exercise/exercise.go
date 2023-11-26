@@ -55,6 +55,7 @@ var (
 type Exercises interface {
 	Retreiver
 	Storer
+	Deleter
 	Orderer
 }
 
@@ -75,7 +76,9 @@ type Storer interface {
 	// updating the references and returns its id.
 	// it overwrites the exercise if it already exists
 	Store(Exercise) (int, error)
+}
 
+type Deleter interface {
 	// DeleteExercise deletes an exercise if exists
 	// updates the references of the previous and next
 	// exercise

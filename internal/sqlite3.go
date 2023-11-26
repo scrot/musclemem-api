@@ -59,6 +59,9 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*sql.DB, error) {
 	}
 
 	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			return db, nil
+		}
 		return nil, err
 	}
 

@@ -11,7 +11,7 @@ import (
 )
 
 type Env struct {
-	URL         string `env:"URL" envDefault:"127.0.0.1:8080"`
+	URL         string `env:"URL" envDefault:":8080"`
 	Environment string `env:"ENVIRONMENT" envDefault:"development"`
 }
 
@@ -34,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server, err := internal.NewServer(l)
+	server, err := internal.NewServer(l, vs.URL)
 	if err != nil {
 		l.Error(err.Error())
 		os.Exit(1)
