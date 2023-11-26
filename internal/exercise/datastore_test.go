@@ -1,4 +1,4 @@
-package exercise
+package exercise_test
 
 import (
 	"database/sql"
@@ -10,16 +10,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/scrot/musclemem-api/internal"
+	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/scrot/musclemem-api/internal/user"
 )
 
 func TestExercisesWithID(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
-	xs.withWorkout(t, Workout{ID: 1})
+	xs.withWorkout(t, exercise.Workout{ID: 1})
 
-	e1 := Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: ExerciseRef{}, Previous: ExerciseRef{}}
-	e2 := Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: ExerciseRef{}, Previous: ExerciseRef{}}
+	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 
 	e1.Next = e2.ToRef()
 	e2.Previous = e1.ToRef()
@@ -29,23 +31,23 @@ func TestExercisesWithID(t *testing.T) {
 
 	t.Run("ErrorOnNotExist", func(t *testing.T) {
 		e, err := xs.WithID(3)
-		if !errors.Is(err, ErrNotFound) {
-			t.Errorf("expected %q but got %q", ErrNotFound, err)
+		if !errors.Is(err, exercise.ErrNotFound) {
+			t.Errorf("expected %q but got %q", exercise.ErrNotFound, err)
 		}
 
-		if !cmp.Equal(e, Exercise{}) {
-			t.Errorf("expected Exercise{} but got %v", e)
+		if !cmp.Equal(e, exercise.Exercise{}) {
+			t.Errorf("expected exercise.Exercise{} but got %v", e)
 		}
 	})
 
 	t.Run("ErrorOnInvalidId", func(t *testing.T) {
 		e, err := xs.WithID(-1)
-		if !errors.Is(err, ErrNoID) {
-			t.Errorf("expected %q but got %q", ErrNoID, err)
+		if !errors.Is(err, exercise.ErrNoID) {
+			t.Errorf("expected %q but got %q", exercise.ErrNoID, err)
 		}
 
-		if !cmp.Equal(e, Exercise{}) {
-			t.Errorf("expected Exercise{} but got %v", e)
+		if !cmp.Equal(e, exercise.Exercise{}) {
+			t.Errorf("expected exercise.Exercise{} but got %v", e)
 		}
 	})
 
@@ -64,11 +66,11 @@ func TestExercisesWithID(t *testing.T) {
 func TestExercisesFromWorkout(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
-	xs.withWorkout(t, Workout{ID: 1})
+	xs.withWorkout(t, exercise.Workout{ID: 1})
 
-	e1 := Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: ExerciseRef{}, Previous: ExerciseRef{}}
-	e2 := Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: ExerciseRef{}, Previous: ExerciseRef{}}
-	e3 := Exercise{ID: 3, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: ExerciseRef{}, Previous: ExerciseRef{}}
+	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+	e3 := exercise.Exercise{ID: 3, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 
 	e1.Next = e2.ToRef()
 	e2.Previous = e1.ToRef()
@@ -82,7 +84,7 @@ func TestExercisesFromWorkout(t *testing.T) {
 	t.Run("ErrorInvalidID", func(t *testing.T) {
 		xs, err := xs.FromWorkout(0, 0)
 		if err == nil {
-			t.Errorf("expected %q but got nil", ErrNoID)
+			t.Errorf("expected %q but got nil", exercise.ErrNoID)
 		}
 		if len(xs) != 0 {
 			t.Errorf("expected empty list but got %v", xs)
@@ -92,7 +94,7 @@ func TestExercisesFromWorkout(t *testing.T) {
 	t.Run("ErrorNotFound", func(t *testing.T) {
 		xs, err := xs.FromWorkout(1, 2)
 		if err == nil {
-			t.Errorf("expected %q but got nil", ErrNotFound)
+			t.Errorf("expected %q but got nil", exercise.ErrNotFound)
 		}
 		if len(xs) != 0 {
 			t.Errorf("expected empty list but got %v", xs)
@@ -108,8 +110,8 @@ func TestExercisesFromWorkout(t *testing.T) {
 			t.Errorf("expected %d exercises but got %d", 3, len(xs))
 		}
 
-		if !cmp.Equal(xs, []Exercise{e1, e2, e3}) {
-			t.Errorf("expected %v but got %v", []Exercise{e1, e2, e3}, xs)
+		if !cmp.Equal(xs, []exercise.Exercise{e1, e2, e3}) {
+			t.Errorf("expected %v but got %v", []exercise.Exercise{e1, e2, e3}, xs)
 		}
 	})
 }
@@ -118,33 +120,33 @@ func TestStore(t *testing.T) {
 	t.Run("ErrorOnEmpty", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, Workout{ID: 1})
+		xs.withWorkout(t, exercise.Workout{ID: 1})
 
-		var empty Exercise
+		var empty exercise.Exercise
 
-		if _, err := xs.Store(empty); !errors.Is(err, ErrMissingFields) {
-			t.Errorf("expected %q but got %q", ErrMissingFields, err)
+		if _, err := xs.Store(empty); !errors.Is(err, exercise.ErrMissingFields) {
+			t.Errorf("expected %q but got %q", exercise.ErrMissingFields, err)
 		}
 	})
 
 	t.Run("ErrorOnMissingFields", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, Workout{ID: 1})
+		xs.withWorkout(t, exercise.Workout{ID: 1})
 
-		missing := Exercise{Owner: 1, Workout: 1}
+		missing := exercise.Exercise{Owner: 1, Workout: 1}
 
-		if _, err := xs.Store(missing); !errors.Is(err, ErrMissingFields) {
-			t.Errorf("expected %q but got %q", ErrMissingFields, err)
+		if _, err := xs.Store(missing); !errors.Is(err, exercise.ErrMissingFields) {
+			t.Errorf("expected %q but got %q", exercise.ErrMissingFields, err)
 		}
 	})
 
 	t.Run("InsertWithInvalidWorkout", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, Workout{ID: 1})
+		xs.withWorkout(t, exercise.Workout{ID: 1})
 
-		newExercise := Exercise{
+		newExercise := exercise.Exercise{
 			Owner:       1,
 			Workout:     2,
 			Name:        "Interval",
@@ -160,9 +162,9 @@ func TestStore(t *testing.T) {
 	t.Run("InsertFirstExercise", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, Workout{ID: 1})
+		xs.withWorkout(t, exercise.Workout{ID: 1})
 
-		newExercise := Exercise{
+		newExercise := exercise.Exercise{
 			Owner:       1,
 			Workout:     1,
 			Name:        "Interval",
@@ -183,10 +185,10 @@ func TestStore(t *testing.T) {
 	t.Run("InsertAndUpdateRefs", func(t *testing.T) {
 		xs := newMockExercises(t)
 		xs.withUser(t, user.User{ID: 1})
-		xs.withWorkout(t, Workout{ID: 1})
+		xs.withWorkout(t, exercise.Workout{ID: 1})
 
-		e1 := Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: ExerciseRef{}, Previous: ExerciseRef{}}
-		e2 := Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: ExerciseRef{}, Previous: ExerciseRef{}}
+		e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+		e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 
 		e1.Next = e2.ToRef()
 		e2.Previous = e1.ToRef()
@@ -194,7 +196,7 @@ func TestStore(t *testing.T) {
 		xs.withExercise(t, e1)
 		xs.withExercise(t, e2)
 
-		newExercise := Exercise{
+		newExercise := exercise.Exercise{
 			Owner:       1,
 			Workout:     1,
 			Name:        "Interval",
@@ -246,8 +248,8 @@ func TestStore(t *testing.T) {
 func TestDelete(t *testing.T) {
 	xs := newMockExercises(t)
 	xs.withUser(t, user.User{ID: 1})
-	xs.withWorkout(t, Workout{ID: 1})
-	xs.withExercise(t, Exercise{ID: 1})
+	xs.withWorkout(t, exercise.Workout{ID: 1})
+	xs.withExercise(t, exercise.Exercise{ID: 1, Owner: 1, Workout: 1})
 
 	cs := []struct {
 		name           string
@@ -255,9 +257,9 @@ func TestDelete(t *testing.T) {
 		expectedOutput bool
 		expectedErr    error
 	}{
-		{"ErrorOnInvalidId", -1, false, ErrNoID},
-		{"ErrNoID", 0, false, ErrNoID},
-		{"ErrNotFound", 2, false, ErrNotFound},
+		{"ErrorOnInvalidId", -1, false, exercise.ErrNoID},
+		{"ErrNoID", 0, false, exercise.ErrNoID},
+		{"ErrNotFound", 2, false, exercise.ErrNotFound},
 		{"OnExist", 1, false, nil},
 	}
 
@@ -280,37 +282,33 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-type MockDatastore struct {
-	Exercises
+type mockExercises struct {
+	exercise.Exercises
 	db *sql.DB
 }
 
-func newMockExercises(t *testing.T) *MockDatastore {
+func newMockExercises(t *testing.T) *mockExercises {
 	t.Helper()
 
 	dbURL := fmt.Sprintf("file://%s/%s", t.TempDir(), "test.db")
 	mURL := "file://../../migrations"
-	config := SqliteDatastoreConfig{
+	config := internal.SqliteDatastoreConfig{
 		DatabaseURL:        dbURL,
 		MigrationURL:       mURL,
 		Overwrite:          true,
 		ForeignKeyEnforced: true,
 	}
 
-	store, err := NewSqliteDatastore(config)
+	db, err := internal.NewSqliteDatastore(config)
 	if err != nil {
 		t.Errorf("expected no error but got %q", err)
 	}
+	xs := exercise.NewSqliteExercises(db)
 
-	db, err := sql.Open("sqlite3", dbURL)
-	if err != nil {
-		t.Errorf("expected no error but got %q", err)
-	}
-
-	return &MockDatastore{store, db}
+	return &mockExercises{xs, db}
 }
 
-func (ds *MockDatastore) withUser(t *testing.T, u user.User) {
+func (ds *mockExercises) withUser(t *testing.T, u user.User) {
 	t.Helper()
 
 	const stmt = `
@@ -329,7 +327,7 @@ func (ds *MockDatastore) withUser(t *testing.T, u user.User) {
 	}
 }
 
-func (ds *MockDatastore) withWorkout(t *testing.T, w Workout) {
+func (ds *mockExercises) withWorkout(t *testing.T, w exercise.Workout) {
 	t.Helper()
 
 	const stmt = `
@@ -348,7 +346,7 @@ func (ds *MockDatastore) withWorkout(t *testing.T, w Workout) {
 	}
 }
 
-func (ds *MockDatastore) withExercise(t *testing.T, e Exercise) {
+func (ds *mockExercises) withExercise(t *testing.T, e exercise.Exercise) {
 	t.Helper()
 
 	const stmt = `
@@ -376,7 +374,7 @@ func (ds *MockDatastore) withExercise(t *testing.T, e Exercise) {
 	}
 }
 
-func (ds *MockDatastore) tablesEqual(t *testing.T, wantTables []string) ([]string, bool) {
+func (ds *mockExercises) tablesEqual(t *testing.T, wantTables []string) ([]string, bool) {
 	t.Helper()
 
 	const stmt = `

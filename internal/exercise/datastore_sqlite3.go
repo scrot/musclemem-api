@@ -4,79 +4,22 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/VauntDev/tqla"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/go-cmp/cmp"
-	_ "github.com/mattn/go-sqlite3"
 )
 
-// Implements the Datastore interface for sqlite3
-type (
-	SqliteDatastore struct {
-		*sql.DB
-	}
-
-	// Configuration for SqliteDatastore
-	SqliteDatastoreConfig struct {
-		DatabaseURL        string
-		MigrationURL       string
-		Overwrite          bool
-		ForeignKeyEnforced bool
-	}
-)
-
-var DefaultSqliteConfig = SqliteDatastoreConfig{
-	DatabaseURL:        "file://./musclemem.db",
-	MigrationURL:       "file://./migrations/",
-	Overwrite:          false,
-	ForeignKeyEnforced: true,
+type SqliteExercises struct {
+	db *sql.DB
 }
 
-// NewSqliteDatastore creates a new database at dbURL
-// and runs the migrations in the defaultMigrations folder
-// if overwrite is false, it returns the existing db
-func NewSqliteDatastore(config SqliteDatastoreConfig) (*SqliteDatastore, error) {
-	path, hasFileScheme := strings.CutPrefix(config.DatabaseURL, "file://")
-	if !hasFileScheme {
-		err := errors.New("invalid scheme expected file://")
-		return nil, err
-	}
-
-	if config.Overwrite {
-		os.Remove(path)
-	}
-
-	dbDNS := fmt.Sprintf("file:%s?_foreign_keys=%t", path, config.ForeignKeyEnforced)
-	db, err := sql.Open("sqlite3", dbDNS)
-	if err != nil {
-		return nil, err
-	}
-
-	drv, err := sqlite3.WithInstance(db, &sqlite3.Config{})
-	if err != nil {
-		return nil, err
-	}
-
-	m, err := migrate.NewWithDatabaseInstance(config.MigrationURL, config.DatabaseURL, drv)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := m.Up(); err != nil {
-		return nil, err
-	}
-
-	return &SqliteDatastore{db}, nil
+func NewSqliteExercises(db *sql.DB) *SqliteExercises {
+	return &SqliteExercises{db}
 }
 
 // ExerciseByID returns an exercise from the database if exists
 // otherwise returns NotFound error
-func (ds *SqliteDatastore) WithID(id int) (Exercise, error) {
+func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 	const (
 		stmt = `
     SELECT exercise_id, owner, workout, name, weight, repetitions, previous, next
@@ -110,7 +53,7 @@ func (ds *SqliteDatastore) WithID(id int) (Exercise, error) {
 		next int
 	)
 
-	if err := ds.QueryRow(q, args...).Scan(
+	if err := ds.db.QueryRow(q, args...).Scan(
 		&e.ID,
 		&e.Owner,
 		&e.Workout,
@@ -134,7 +77,7 @@ func (ds *SqliteDatastore) WithID(id int) (Exercise, error) {
 			return Exercise{}, err
 		}
 
-		if err := ds.QueryRow(q, args...).Scan(&pRef.ID, &pRef.Name); err != nil {
+		if err := ds.db.QueryRow(q, args...).Scan(&pRef.ID, &pRef.Name); err != nil {
 			return Exercise{}, err
 		}
 
@@ -149,7 +92,7 @@ func (ds *SqliteDatastore) WithID(id int) (Exercise, error) {
 			return Exercise{}, err
 		}
 
-		if err := ds.QueryRow(q, args...).Scan(&nRef.ID, &nRef.Name); err != nil {
+		if err := ds.db.QueryRow(q, args...).Scan(&nRef.ID, &nRef.Name); err != nil {
 			return Exercise{}, err
 		}
 
@@ -161,7 +104,7 @@ func (ds *SqliteDatastore) WithID(id int) (Exercise, error) {
 
 // ExercisesByWorkoutID returns all exercises part of a workout
 // given a owner and workout id pair
-func (ds *SqliteDatastore) FromWorkout(uid int, wid int) ([]Exercise, error) {
+func (ds *SqliteExercises) FromWorkout(uid int, wid int) ([]Exercise, error) {
 	const (
 		selectStmt = `
     SELECT exercise_id, owner, workout, name, weight, repetitions, previous, next
@@ -194,7 +137,7 @@ func (ds *SqliteDatastore) FromWorkout(uid int, wid int) ([]Exercise, error) {
 		return []Exercise{}, err
 	}
 
-	rs, err := ds.Query(q, args...)
+	rs, err := ds.db.Query(q, args...)
 	if err != nil {
 		return []Exercise{}, err
 	}
@@ -218,7 +161,7 @@ func (ds *SqliteDatastore) FromWorkout(uid int, wid int) ([]Exercise, error) {
 				return []Exercise{}, err
 			}
 
-			if err := ds.QueryRow(q, args...).Scan(&x.Previous.ID, &x.Previous.Name); err != nil {
+			if err := ds.db.QueryRow(q, args...).Scan(&x.Previous.ID, &x.Previous.Name); err != nil {
 				return []Exercise{}, err
 			}
 		}
@@ -229,7 +172,7 @@ func (ds *SqliteDatastore) FromWorkout(uid int, wid int) ([]Exercise, error) {
 				return []Exercise{}, err
 			}
 
-			if err := ds.QueryRow(q, args...).Scan(&x.Next.ID, &x.Next.Name); err != nil {
+			if err := ds.db.QueryRow(q, args...).Scan(&x.Next.ID, &x.Next.Name); err != nil {
 				return []Exercise{}, err
 			}
 		}
@@ -247,7 +190,7 @@ func (ds *SqliteDatastore) FromWorkout(uid int, wid int) ([]Exercise, error) {
 // StoreExercise stores the given exrcise in the sqlite database
 // If the id already exists it updates the existing record
 // ErrMissingFields is returned when fields are missing
-func (ds *SqliteDatastore) Store(x Exercise) (int, error) {
+func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 	const (
 		insertStmt = `
     INSERT INTO exercises (owner, workout, name, weight, repetitions, previous, next)
@@ -292,7 +235,7 @@ func (ds *SqliteDatastore) Store(x Exercise) (int, error) {
 		}
 
 		// insert new exercise
-		tx, err := ds.Begin()
+		tx, err := ds.db.Begin()
 		if err != nil {
 			return 0, nil
 		}
@@ -371,7 +314,7 @@ func (ds *SqliteDatastore) Store(x Exercise) (int, error) {
 			return 0, err
 		}
 
-		_, err = ds.Exec(q, args...)
+		_, err = ds.db.Exec(q, args...)
 		if err != nil {
 			return 0, err
 		}
@@ -383,7 +326,7 @@ func (ds *SqliteDatastore) Store(x Exercise) (int, error) {
 	}
 }
 
-func (ds *SqliteDatastore) Delete(id int) error {
+func (ds *SqliteExercises) Delete(id int) error {
 	deleteStmt := `
   DELETE FROM exercises
   WHERE exercise_id = {{.}}
@@ -402,7 +345,7 @@ func (ds *SqliteDatastore) Delete(id int) error {
 	if err != nil {
 		return err
 	}
-	res, err := ds.Exec(q, args...)
+	res, err := ds.db.Exec(q, args...)
 	if err != nil {
 		return err
 	}
@@ -419,13 +362,13 @@ func (ds *SqliteDatastore) Delete(id int) error {
 }
 
 // TODO: Implement
-func (ds *SqliteDatastore) Swap(i int, j int) error {
+func (ds *SqliteExercises) Swap(i int, j int) error {
 	return nil
 }
 
 // tail returns last exercise in linked list or empty exercise if
 // no exercises exists for that workout
-func tail(s *SqliteDatastore, owner, workout int) (Exercise, error) {
+func tail(ds *SqliteExercises, owner, workout int) (Exercise, error) {
 	const (
 		tailStmt = `
     SELECT exercise_id   
@@ -452,7 +395,7 @@ func tail(s *SqliteDatastore, owner, workout int) (Exercise, error) {
 
 	var tailID int
 
-	err = s.QueryRow(q, args...).Scan(&tailID)
+	err = ds.db.QueryRow(q, args...).Scan(&tailID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Exercise{}, nil
@@ -460,14 +403,14 @@ func tail(s *SqliteDatastore, owner, workout int) (Exercise, error) {
 		return Exercise{}, fmt.Errorf("tail: %w", err)
 	}
 
-	tailExercise, err := s.WithID(tailID)
+	tailExercise, err := ds.WithID(tailID)
 	if err != nil {
 		return Exercise{}, fmt.Errorf("tail: %w", err)
 	}
 	return tailExercise, nil
 }
 
-func (s *SqliteDatastore) exists(id int) bool {
+func (ds *SqliteExercises) exists(id int) bool {
 	stmt := `
   SELECT 1
   FROM exercises
@@ -485,7 +428,7 @@ func (s *SqliteDatastore) exists(id int) bool {
 	}
 
 	var exists bool
-	if err := s.QueryRow(q, args...).Scan(&exists); err != nil {
+	if err := ds.db.QueryRow(q, args...).Scan(&exists); err != nil {
 		return false
 	}
 

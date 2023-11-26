@@ -39,7 +39,8 @@ func main() {
 	}
 
 	// Setup database connections
-	xs, err := exercise.NewSqliteDatastore(exercise.DefaultSqliteConfig)
+	db, err := internal.NewSqliteDatastore(internal.DefaultSqliteConfig)
+	xs := exercise.NewSqliteExercises(db)
 	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
