@@ -154,8 +154,13 @@ func TestStore(t *testing.T) {
 			Repetitions: 10,
 		}
 
-		if _, err := xs.Store(newExercise); err == nil {
+		id, err := xs.Store(newExercise)
+		if err == nil {
 			t.Errorf("expected error but got %q", err)
+		}
+
+		if id != 0 {
+			t.Errorf("expected id to be 0 but got %d", id)
 		}
 	})
 
@@ -265,8 +270,8 @@ func TestDelete(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.Delete(c.input); err != c.expectedErr {
-				t.Errorf("expected no error but got %q", err)
+			if err := xs.Delete(c.input); !errors.Is(err, c.expectedErr) {
+				t.Errorf("expected %q but got %q", c.expectedErr, err)
 			}
 
 			var found bool
@@ -281,6 +286,10 @@ func TestDelete(t *testing.T) {
 		})
 	}
 }
+
+///
+/// Mock Exercise repository
+///
 
 type mockExercises struct {
 	exercise.Exercises

@@ -2,10 +2,12 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -15,29 +17,29 @@ import (
 
 type (
 	Server struct {
-		config    ServerConfig
-		logger    *slog.Logger
-		exercises exercise.Service
-	}
-
-	ServerConfig struct {
-		Version         string `env:"VERSION"`
-		Date            string `env:"DATE"`
-		Maintainer      string `env:"MAINTAINER"`
-		Commit          string `env:"COMMIT"`
-		Threads         int    `env:"THREADS"`
-		URL             string `env:"URL" envDefault:"127.0.0.1:8080"`
-		Environment     string `env:"ENVIRONMENT" envDefault:"development"`
-		ShutdownTimeout string `env:"SHUTDOWN_TIMEOUT" envDefault:"3s"`
+		logger     *slog.Logger
+		exercises  exercise.Service
+		listenAddr string
 	}
 )
 
-func NewServer(cfg ServerConfig, logger *slog.Logger, exercises exercise.Service) *Server {
-	return &Server{
-		cfg,
-		logger,
-		exercises,
+func NewServer(l *slog.Logger, listenAddr string) (*Server, error) {
+	dbConfig := DefaultSqliteConfig
+	db, err := NewSqliteDatastore(dbConfig)
+	if err != nil {
+		return nil, fmt.Errorf("NewServer: new SQL database: %w", err)
 	}
+
+	xs := exercise.NewSqliteExercises(db)
+	exerciseSvc := exercise.NewService(l, xs)
+
+	s := Server{
+		logger:     l,
+		exercises:  *exerciseSvc,
+		listenAddr: listenAddr,
+	}
+
+	return &s, nil
 }
 
 func (s *Server) Routes() http.Handler {
@@ -54,14 +56,14 @@ func (s *Server) Start() {
 	ctx := context.Background()
 
 	srv := &http.Server{
-		Addr:         s.config.URL,
+		Addr:         s.listenAddr,
 		Handler:      s.Routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
-	s.logger.Info("starting api server", "addr", srv.Addr, "env", s.config.Environment, "cpus", s.config.Threads)
+	s.logger.Info("starting api server", "addr", srv.Addr, "env", "cpus", runtime.GOMAXPROCS(0))
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			switch err {
@@ -79,7 +81,7 @@ func (s *Server) Start() {
 	<-shutdown
 
 	// shutdown server or kill server after timeout expires
-	d, err := time.ParseDuration(s.config.ShutdownTimeout)
+	d, err := time.ParseDuration("3s")
 	if err != nil {
 		s.logger.Error(err.Error())
 		os.Exit(1)

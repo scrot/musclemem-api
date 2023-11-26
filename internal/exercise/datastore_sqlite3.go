@@ -44,7 +44,7 @@ func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 
 	q, args, err := tmpl.Compile(stmt, id)
 	if err != nil {
-		return Exercise{}, err
+		return Exercise{}, fmt.Errorf("WithID: %w", err)
 	}
 
 	var (
@@ -64,9 +64,9 @@ func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 		&next,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Exercise{}, ErrNotFound
+			return Exercise{}, fmt.Errorf("WithID: %w", ErrNotFound)
 		}
-		return Exercise{}, err
+		return Exercise{}, fmt.Errorf("WithID: %w", err)
 	}
 
 	if prev != 0 {
@@ -74,11 +74,11 @@ func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 
 		q, args, err = tmpl.Compile(refStmt, prev)
 		if err != nil {
-			return Exercise{}, err
+			return Exercise{}, fmt.Errorf("WithID: %w", err)
 		}
 
 		if err := ds.db.QueryRow(q, args...).Scan(&pRef.ID, &pRef.Name); err != nil {
-			return Exercise{}, err
+			return Exercise{}, fmt.Errorf("WithID: %w", err)
 		}
 
 		e.Previous = pRef
@@ -89,11 +89,11 @@ func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 
 		q, args, err = tmpl.Compile(refStmt, next)
 		if err != nil {
-			return Exercise{}, err
+			return Exercise{}, fmt.Errorf("WithID: %w", err)
 		}
 
 		if err := ds.db.QueryRow(q, args...).Scan(&nRef.ID, &nRef.Name); err != nil {
-			return Exercise{}, err
+			return Exercise{}, fmt.Errorf("WithID: %w", err)
 		}
 
 		e.Next = nRef
@@ -218,7 +218,7 @@ func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 	// required fields
 	if x.Owner <= 0 || x.Workout <= 0 || x.Name == "" ||
 		x.Weight <= 0 || x.Repetitions <= 0 {
-		return 0, ErrMissingFields
+		return 0, fmt.Errorf("Store: %w", ErrMissingFields)
 	}
 
 	tmpl, err := tqla.New()
@@ -231,7 +231,7 @@ func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 		// get last exercise in workout
 		tail, err := tail(ds, x.Owner, x.Workout)
 		if err != nil {
-			return 0, fmt.Errorf("get tail exercise: %w", err)
+			return 0, fmt.Errorf("Store: %w", err)
 		}
 
 		// insert new exercise
@@ -243,19 +243,19 @@ func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 		insert, args, err := tmpl.Compile(insertStmt, x)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("Store: compile insert statement: %w", err)
+			return 0, fmt.Errorf("Store: insert new exercise: %w", err)
 		}
 
 		res, err := tx.Exec(insert, args...)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("Store: execute insert statement: %w", err)
+			return 0, fmt.Errorf("Store: insert new exercise: %w", err)
 		}
 
 		newID, err := res.LastInsertId()
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("Store: last inserted id: %w", err)
+			return 0, fmt.Errorf("Store: insert new exercise: %w", err)
 		}
 
 		// update exercise references
@@ -271,13 +271,13 @@ func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 			patchNew, args, err := tmpl.Compile(updatePreviousStmt, newExPatch)
 			if err != nil {
 				tx.Rollback()
-				return 0, fmt.Errorf("update ref for n-1 (compile): %w", err)
+				return 0, fmt.Errorf("Store: patch new exercise: %w", err)
 			}
 
 			_, err = tx.Exec(patchNew, args...)
 			if err != nil {
 				tx.Rollback()
-				return 0, fmt.Errorf("update ref for n-1 (exec): %w", err)
+				return 0, fmt.Errorf("Store: patch new exercise: %w", err)
 			}
 
 			oldExPatch := struct {
@@ -291,19 +291,18 @@ func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 			patchOld, args, err := tmpl.Compile(updateNextStmt, oldExPatch)
 			if err != nil {
 				tx.Rollback()
-				return 0, fmt.Errorf("update ref for n (compile): %w", err)
+				return 0, fmt.Errorf("Store: patch old exercise: %w", err)
 			}
 
 			_, err = tx.Exec(patchOld, args...)
 			if err != nil {
 				tx.Rollback()
-				return 0, fmt.Errorf("update ref for n (exec): %w", err)
+				return 0, fmt.Errorf("Store: patch old exercise: %w", err)
 			}
-
 		}
 
 		if err := tx.Commit(); err != nil {
-			return 0, fmt.Errorf("commit new exercise transaction: %w", err)
+			return 0, fmt.Errorf("Store: commit transaction: %w", err)
 		}
 
 		return int(newID), nil
@@ -311,18 +310,18 @@ func (ds *SqliteExercises) Store(x Exercise) (int, error) {
 	case ds.exists(x.ID):
 		q, args, err := tmpl.Compile(updateStmt, x)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("Store: update existing exercise: %w", err)
 		}
 
 		_, err = ds.db.Exec(q, args...)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("Store: update existing exercise: %w", err)
 		}
 
 		return x.ID, nil
 
 	default:
-		return 0, fmt.Errorf("id provided but exercise not found")
+		return 0, fmt.Errorf("Store: id provided but exercise not found")
 	}
 }
 
@@ -333,29 +332,29 @@ func (ds *SqliteExercises) Delete(id int) error {
   `
 
 	if id <= 0 {
-		return ErrNoID
+		return fmt.Errorf("Delete: %w", ErrNoID)
 	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return err
+		return fmt.Errorf("Delete: %w", err)
 	}
 
 	q, args, err := tmpl.Compile(deleteStmt, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("Delete: %w", err)
 	}
 	res, err := ds.db.Exec(q, args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("Delete: %w", err)
 	}
 	c, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("Delete: %w", err)
 	}
 
 	if c == 0 {
-		return ErrNotFound
+		return fmt.Errorf("Delete: %w", ErrNotFound)
 	}
 
 	return nil
