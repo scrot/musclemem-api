@@ -45,7 +45,7 @@ func (r ExerciseRef) ToExercise(xs Exercises) (Exercise, error) {
 }
 
 var (
-	ErrNoID          = errors.New("no (valid) id provided")
+	ErrInvalidID     = errors.New("invalid exercise id")
 	ErrNotFound      = errors.New("exercise not found")
 	ErrMissingFields = errors.New("missing required fields")
 )
@@ -55,6 +55,7 @@ var (
 type Exercises interface {
 	Retreiver
 	Storer
+	Updater
 	Deleter
 	Orderer
 }
@@ -63,30 +64,37 @@ type Exercises interface {
 type Retreiver interface {
 	// ExerciseByID takes an excercise id and returns the exercise
 	// from the exercises repository if it exists
-	WithID(int) (Exercise, error)
-
-	// ExercisesByWorkoutID takes a owner and workout id and returns all
-	// exercises from the repository that belong to it
-	FromWorkout(int, int) ([]Exercise, error)
+	WithID(id int) (Exercise, error)
 }
 
-// Implementation of the Storer interface enables manipulating exercises
+// Implementation of the Storer interface enables creating new exercises
 type Storer interface {
 	// StoreExercise stores an exercise at the tail,
 	// updating the references and returns its id.
-	// it overwrites the exercise if it already exists
-	Store(Exercise) (int, error)
+	New(owner, workout int, name string, weight float64, repetitions int) (int, error)
+}
+
+// Implemention of Updater interface enables updating exercises
+type Updater interface {
+	// ChangeName updates the name of an existing exercise
+	ChangeName(id int, newName string) error
+
+	// UpdateWeight updates the weight of an existing exercise
+	UpdateWeight(id int, newWeight float64) error
+
+	// UpdateRepetitions updates the repetitions of an existing exercise
+	UpdateRepetitions(id int, newRepetitions int) error
 }
 
 type Deleter interface {
 	// DeleteExercise deletes an exercise if exists
-	// updates the references of the previous and next
-	// exercise
-	Delete(int) error
+	// and updates the references in the linked list
+	Delete(id int) error
 }
 
 // Implementation of the Orderer interface allows to reorder exercise positions
 type Orderer interface {
 	// SwapExercises swaps the position of two exercises
-	Swap(int, int) error
+	// that belong to a user workout
+	Swap(id1 int, id2 int) error
 }

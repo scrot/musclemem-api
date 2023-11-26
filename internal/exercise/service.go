@@ -87,7 +87,7 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := s.exercises.Store(e)
+	id, err := s.exercises.New(e.Owner, e.Workout, e.Name, e.Weight, e.Repetitions)
 	if err != nil {
 		s.writeInternalError(w, err)
 		return
