@@ -125,9 +125,15 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
     `
 	)
 
-	// required fields
-	if owner <= 0 || workout <= 0 || name == "" ||
-		weight <= 0 || repetitions <= 0 {
+	if !ds.userExists(owner) {
+		return 0, fmt.Errorf("New: %w", ErrInvalidOwner)
+	}
+
+	if !ds.workoutExists(workout) {
+		return 0, fmt.Errorf("New: %w", ErrInvalidWorkout)
+	}
+
+	if name == "" || weight <= 0 || repetitions <= 0 {
 		return 0, fmt.Errorf("New: %w", ErrMissingFields)
 	}
 
@@ -227,13 +233,20 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
 func (ds *SqliteExercises) ChangeName(id int, name string) error {
 	const updateStmt = `
   UPDATE exercises
-  SET name = {{ .Name }},
+  SET name = {{ .Name }}
   WHERE exercise_id = {{ .ID }}
   `
+	if id <= 0 {
+		return ErrInvalidID
+	}
+
+	if name == "" {
+		return ErrMissingFields
+	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return err
+		return fmt.Errorf("ChangeName: %w", err)
 	}
 
 	data := struct {
@@ -243,12 +256,12 @@ func (ds *SqliteExercises) ChangeName(id int, name string) error {
 
 	q, args, err := tmpl.Compile(updateStmt, data)
 	if err != nil {
-		return fmt.Errorf("UpdateWeights: %w", err)
+		return fmt.Errorf("ChangeName: %w", err)
 	}
 
 	_, err = ds.db.Exec(q, args...)
 	if err != nil {
-		return fmt.Errorf("UpdateWeights: %w", err)
+		return fmt.Errorf("ChangeName: %w", err)
 	}
 
 	return nil
@@ -257,13 +270,20 @@ func (ds *SqliteExercises) ChangeName(id int, name string) error {
 func (ds *SqliteExercises) UpdateWeight(id int, weight float64) error {
 	const updateStmt = `
   UPDATE exercises
-  SET weight = {{ .Weight }},
+  SET weight = {{ .Weight }}
   WHERE exercise_id = {{ .ID }}
   `
+	if id <= 0 {
+		return ErrInvalidID
+	}
+
+	if weight < 0 {
+		return ErrNegativeValue
+	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return err
+		return fmt.Errorf("UpdateWeights: %w", err)
 	}
 
 	data := struct {
@@ -287,13 +307,20 @@ func (ds *SqliteExercises) UpdateWeight(id int, weight float64) error {
 func (ds *SqliteExercises) UpdateRepetitions(id int, repetitions int) error {
 	const updateStmt = `
   UPDATE exercises
-  SET repetitions = {{ .Repetitions }},
+  SET repetitions = {{ .Repetitions }}
   WHERE exercise_id = {{ .ID }}
   `
+	if id <= 0 {
+		return ErrInvalidID
+	}
+
+	if repetitions < 0 {
+		return ErrNegativeValue
+	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return err
+		return fmt.Errorf("UpdateRepetitions: %w", err)
 	}
 
 	data := struct {
@@ -398,7 +425,57 @@ func tail(ds *SqliteExercises, owner, workout int) (Exercise, error) {
 	return tailExercise, nil
 }
 
-func (ds *SqliteExercises) exists(id int) bool {
+func (ds *SqliteExercises) userExists(id int) bool {
+	stmt := `
+  SELECT 1
+  FROM users
+  WHERE user_id = {{ . }}
+  `
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return false
+	}
+
+	q, args, err := tmpl.Compile(stmt, id)
+	if err != nil {
+		return false
+	}
+
+	var exists bool
+	if err := ds.db.QueryRow(q, args...).Scan(&exists); err != nil {
+		return false
+	}
+
+	return exists
+}
+
+func (ds *SqliteExercises) workoutExists(id int) bool {
+	stmt := `
+  SELECT 1
+  FROM workouts
+  WHERE workout_id = {{ . }}
+  `
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return false
+	}
+
+	q, args, err := tmpl.Compile(stmt, id)
+	if err != nil {
+		return false
+	}
+
+	var exists bool
+	if err := ds.db.QueryRow(q, args...).Scan(&exists); err != nil {
+		return false
+	}
+
+	return exists
+}
+
+func (ds *SqliteExercises) exerciseExists(id int) bool {
 	stmt := `
   SELECT 1
   FROM exercises

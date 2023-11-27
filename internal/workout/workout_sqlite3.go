@@ -29,7 +29,7 @@ func (ds *SqliteWorkouts) Exercises(userID, workoutID int) ([]exercise.Exercise,
     `
 	)
 
-	if userID == 0 || workoutID == 0 {
+	if userID <= 0 || workoutID <= 0 {
 		return []exercise.Exercise{}, ErrInvalidID
 	}
 

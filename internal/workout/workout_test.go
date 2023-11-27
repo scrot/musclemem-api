@@ -1,6 +1,7 @@
 package workout_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,13 +12,19 @@ import (
 )
 
 func TestRetreivingWorkoutExercises(t *testing.T) {
+	t.Parallel()
+
 	xs := internal.NewMockSqliteDatastore(t)
+
 	xs.WithUser(t, user.User{ID: 1})
+
 	xs.WithWorkout(t, workout.Workout{ID: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 2})
 
 	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 	e3 := exercise.Exercise{ID: 3, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+	e4 := exercise.Exercise{ID: 4, Owner: 1, Workout: 2, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
 
 	e1.Next = e2.ToRef()
 	e2.Previous = e1.ToRef()
@@ -27,38 +34,30 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 	xs.WithExercise(t, e1)
 	xs.WithExercise(t, e2)
 	xs.WithExercise(t, e3)
+	xs.WithExercise(t, e4)
 
-	t.Run("ErrorInvalidID", func(t *testing.T) {
-		xs, err := xs.Workouts.Exercises(0, 0)
-		if err == nil {
-			t.Errorf("expected %q but got nil", exercise.ErrInvalidID)
-		}
-		if len(xs) != 0 {
-			t.Errorf("expected empty list but got %v", xs)
-		}
-	})
+	cs := []struct {
+		name        string
+		workoutID   int
+		expected    []exercise.Exercise
+		expectedErr error
+	}{
+		{"ErrorIfNegativeID", -1, []exercise.Exercise{}, workout.ErrInvalidID},
+		{"ErrorIfNoID", 0, []exercise.Exercise{}, workout.ErrInvalidID},
+		{"ErrorIfNotExist", 3, []exercise.Exercise{}, workout.ErrNotFound},
+		{"RetreiveWorkoutExercises", 1, []exercise.Exercise{e1, e2, e3}, nil},
+	}
 
-	t.Run("ErrorNotFound", func(t *testing.T) {
-		xs, err := xs.Workouts.Exercises(1, 2)
-		if err == nil {
-			t.Errorf("expected %q but got nil", exercise.ErrNotFound)
-		}
-		if len(xs) != 0 {
-			t.Errorf("expected empty list but got %v", xs)
-		}
-	})
+	for _, c := range cs {
+		t.Run(c.name, func(t *testing.T) {
+			xs, err := xs.Workouts.Exercises(1, c.workoutID)
+			if !errors.Is(err, c.expectedErr) {
+				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
+			}
 
-	t.Run("ListOnValidWorkout", func(t *testing.T) {
-		xs, err := xs.Workouts.Exercises(1, 1)
-		if err != nil {
-			t.Errorf("expected no error but got %q", err)
-		}
-		if len(xs) != 3 {
-			t.Errorf("expected %d exercises but got %d", 3, len(xs))
-		}
-
-		if !cmp.Equal(xs, []exercise.Exercise{e1, e2, e3}) {
-			t.Errorf("expected %v but got %v", []exercise.Exercise{e1, e2, e3}, xs)
-		}
-	})
+			if !cmp.Equal(xs, c.expected) {
+				t.Errorf("expected '%v' but got '%v'", c.expected, xs)
+			}
+		})
+	}
 }

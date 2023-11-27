@@ -45,9 +45,12 @@ func (r ExerciseRef) ToExercise(xs Exercises) (Exercise, error) {
 }
 
 var (
-	ErrInvalidID     = errors.New("invalid exercise id")
-	ErrNotFound      = errors.New("exercise not found")
-	ErrMissingFields = errors.New("missing required fields")
+	ErrInvalidOwner   = errors.New("owner does not exist")
+	ErrInvalidWorkout = errors.New("workout does not exist")
+	ErrNegativeValue  = errors.New("value is negative")
+	ErrInvalidID      = errors.New("invalid exercise id")
+	ErrNotFound       = errors.New("exercise not found")
+	ErrMissingFields  = errors.New("missing required fields")
 )
 
 // Implementation of Exercises provide the means to persist
@@ -71,6 +74,7 @@ type Retreiver interface {
 type Storer interface {
 	// StoreExercise stores an exercise at the tail,
 	// updating the references and returns its id.
+	// user and workout must exist before adding exercise
 	New(owner, workout int, name string, weight float64, repetitions int) (int, error)
 }
 
