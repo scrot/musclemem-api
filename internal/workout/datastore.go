@@ -6,15 +6,10 @@ import (
 	"github.com/scrot/musclemem-api/internal/exercise"
 )
 
-type Workout struct {
-	ID   int
-	Name string
-}
-
 var (
-	ErrInvalidID     = errors.New("invalid user or workout id")
-	ErrNotFound      = errors.New("workout not found")
-	ErrMissingFields = errors.New("missing required fields")
+	ErrUserNotExist    = errors.New("user doesn't exist")
+	ErrWorkoutNotExist = errors.New("workout doesn't exist")
+	ErrMissingFields   = errors.New("missing required fields")
 )
 
 type Workouts interface {
@@ -27,5 +22,5 @@ type Retreiver interface {
 }
 
 type Storer interface {
-	New(name string) (int, error)
+	New(userID int, name string) (int, error)
 }

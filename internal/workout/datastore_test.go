@@ -11,6 +11,40 @@ import (
 	"github.com/scrot/musclemem-api/internal/workout"
 )
 
+func TestCreatingNewWorkout(t *testing.T) {
+	t.Parallel()
+
+	xs := internal.NewMockSqliteDatastore(t)
+	xs.WithUser(t, user.User{ID: 1})
+
+	cs := []struct {
+		name        string
+		userID      int
+		workoutName string
+		expectedID  bool
+		expectedErr error
+	}{
+		{"ErrorIfNoUserID", 2, "", false, workout.ErrUserNotExist},
+		{"ErrorIfNonExistingUser", 2, "", false, workout.ErrUserNotExist},
+		{"ErrorIfNoName", 1, "", false, workout.ErrMissingFields},
+		{"Valid", 1, "NEW", true, nil},
+	}
+
+	for _, c := range cs {
+		t.Run(c.name, func(t *testing.T) {
+			id, err := xs.Workouts.New(c.userID, c.workoutName)
+			if errors.Is(err, c.expectedErr) {
+				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
+			}
+
+			newID := id > 0
+			if newID != c.expectedID {
+				t.Errorf("expected new id %t but was %t", c.expectedID, newID)
+			}
+		})
+	}
+}
+
 func TestRetreivingWorkoutExercises(t *testing.T) {
 	t.Parallel()
 
@@ -38,19 +72,23 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 
 	cs := []struct {
 		name        string
+		userID      int
 		workoutID   int
 		expected    []exercise.Exercise
 		expectedErr error
 	}{
-		{"ErrorIfNegativeID", -1, []exercise.Exercise{}, workout.ErrInvalidID},
-		{"ErrorIfNoID", 0, []exercise.Exercise{}, workout.ErrInvalidID},
-		{"ErrorIfNotExist", 3, []exercise.Exercise{}, workout.ErrNotFound},
-		{"RetreiveWorkoutExercises", 1, []exercise.Exercise{e1, e2, e3}, nil},
+		{"ErrorIfNegativeUserID", -1, 1, []exercise.Exercise{}, workout.ErrUserNotExist},
+		{"ErrorIfNoUserID", 0, 1, []exercise.Exercise{}, workout.ErrUserNotExist},
+		{"ErrorIfUserNotExist", 2, 1, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
+		{"ErrorIfNegativeWorkoutID", 1, -1, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
+		{"ErrorIfNoWorkoutID", 1, 0, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
+		{"ErrorIfWorkoutNotExist", 1, 3, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
+		{"RetreiveWorkoutExercises", 1, 1, []exercise.Exercise{e1, e2, e3}, nil},
 	}
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			xs, err := xs.Workouts.Exercises(1, c.workoutID)
+			xs, err := xs.Workouts.Exercises(c.userID, c.workoutID)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
@@ -60,4 +98,8 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChangingName(t *testing.T) {
+	t.Error("TODO: change workout name")
 }

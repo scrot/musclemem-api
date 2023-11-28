@@ -2,6 +2,7 @@ package workout
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/VauntDev/tqla"
 	"github.com/scrot/musclemem-api/internal/exercise"
@@ -13,6 +14,10 @@ type SqliteWorkouts struct {
 
 func NewSqliteWorkouts(db *sql.DB) *SqliteWorkouts {
 	return &SqliteWorkouts{db}
+}
+
+func (ds *SqliteWorkouts) New(userID int, name string) (int, error) {
+	return 0, errors.New("todo")
 }
 
 func (ds *SqliteWorkouts) Exercises(userID, workoutID int) ([]exercise.Exercise, error) {
@@ -29,8 +34,12 @@ func (ds *SqliteWorkouts) Exercises(userID, workoutID int) ([]exercise.Exercise,
     `
 	)
 
-	if userID <= 0 || workoutID <= 0 {
-		return []exercise.Exercise{}, ErrInvalidID
+	if userID <= 0 {
+		return []exercise.Exercise{}, ErrUserNotExist
+	}
+
+	if workoutID <= 0 {
+		return []exercise.Exercise{}, ErrWorkoutNotExist
 	}
 
 	tmpl, err := tqla.New()
@@ -92,12 +101,8 @@ func (ds *SqliteWorkouts) Exercises(userID, workoutID int) ([]exercise.Exercise,
 	}
 
 	if len(xs) == 0 {
-		return []exercise.Exercise{}, ErrNotFound
+		return []exercise.Exercise{}, ErrWorkoutNotExist
 	}
 
 	return xs, nil
-}
-
-func (ws *SqliteWorkouts) New(name string) (int, error) {
-	return 0, nil
 }
