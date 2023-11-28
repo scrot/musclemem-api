@@ -21,11 +21,11 @@ func TestCreatingNewWorkout(t *testing.T) {
 		name        string
 		userID      int
 		workoutName string
-		expectedID  bool
+		expectedNew bool
 		expectedErr error
 	}{
-		{"ErrorIfNoUserID", 2, "", false, workout.ErrUserNotExist},
-		{"ErrorIfNonExistingUser", 2, "", false, workout.ErrUserNotExist},
+		{"ErrorIfNoUserID", 2, "", false, workout.ErrUserNotFound},
+		{"ErrorIfNonExistingUser", 2, "", false, workout.ErrUserNotFound},
 		{"ErrorIfNoName", 1, "", false, workout.ErrMissingFields},
 		{"Valid", 1, "NEW", true, nil},
 	}
@@ -33,13 +33,13 @@ func TestCreatingNewWorkout(t *testing.T) {
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
 			id, err := xs.Workouts.New(c.userID, c.workoutName)
-			if errors.Is(err, c.expectedErr) {
+			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
 			newID := id > 0
-			if newID != c.expectedID {
-				t.Errorf("expected new id %t but was %t", c.expectedID, newID)
+			if newID != c.expectedNew {
+				t.Errorf("expected new id")
 			}
 		})
 	}
@@ -52,18 +52,18 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 
 	xs.WithUser(t, user.User{ID: 1})
 
-	xs.WithWorkout(t, workout.Workout{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 2})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 2, Owner: 1})
 
-	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
-	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
-	e3 := exercise.Exercise{ID: 3, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
-	e4 := exercise.Exercise{ID: 4, Owner: 1, Workout: 2, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8}
+	e2 := exercise.Exercise{ID: 2, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10}
+	e3 := exercise.Exercise{ID: 3, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10}
+	e4 := exercise.Exercise{ID: 4, Workout: 2, Name: "Interval", Weight: 80.0, Repetitions: 10}
 
-	e1.Next = e2.ToRef()
-	e2.Previous = e1.ToRef()
-	e2.Next = e3.ToRef()
-	e3.Previous = e2.ToRef()
+	e1.NextID = e2.ID
+	e2.PreviousID = e1.ID
+	e2.NextID = e3.ID
+	e3.PreviousID = e2.ID
 
 	xs.WithExercise(t, e1)
 	xs.WithExercise(t, e2)
@@ -77,18 +77,15 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 		expected    []exercise.Exercise
 		expectedErr error
 	}{
-		{"ErrorIfNegativeUserID", -1, 1, []exercise.Exercise{}, workout.ErrUserNotExist},
-		{"ErrorIfNoUserID", 0, 1, []exercise.Exercise{}, workout.ErrUserNotExist},
-		{"ErrorIfUserNotExist", 2, 1, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
-		{"ErrorIfNegativeWorkoutID", 1, -1, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
-		{"ErrorIfNoWorkoutID", 1, 0, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
-		{"ErrorIfWorkoutNotExist", 1, 3, []exercise.Exercise{}, workout.ErrWorkoutNotExist},
+		{"ErrorIfNegativeWorkoutID", 1, -1, []exercise.Exercise{}, workout.ErrInvalidID},
+		{"ErrorIfNoWorkoutID", 1, 0, []exercise.Exercise{}, workout.ErrInvalidID},
+		{"ErrorIfWorkoutNotExist", 1, 3, []exercise.Exercise{}, workout.ErrNotFound},
 		{"RetreiveWorkoutExercises", 1, 1, []exercise.Exercise{e1, e2, e3}, nil},
 	}
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			xs, err := xs.Workouts.Exercises(c.userID, c.workoutID)
+			xs, err := xs.Workouts.WorkoutExercises(c.workoutID)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}

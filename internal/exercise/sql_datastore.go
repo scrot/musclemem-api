@@ -22,14 +22,9 @@ func NewSqliteExercises(db *sql.DB) *SqliteExercises {
 func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 	const (
 		stmt = `
-    SELECT exercise_id, owner, workout, name, weight, repetitions, previous, next
+    SELECT exercise_id, workout, name, weight, repetitions, previous, next
     FROM exercises
     WHERE exercise_id = {{ . }}
-    `
-		refStmt = `
-    SELECT exercise_id, name
-    FROM exercises
-    WHERE {{ . }} = exercise_id
     `
 	)
 
@@ -47,56 +42,21 @@ func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 		return Exercise{}, fmt.Errorf("WithID: %w", err)
 	}
 
-	var (
-		e    Exercise
-		prev int
-		next int
-	)
+	var e Exercise
 
 	if err := ds.db.QueryRow(q, args...).Scan(
 		&e.ID,
-		&e.Owner,
 		&e.Workout,
 		&e.Name,
 		&e.Weight,
 		&e.Repetitions,
-		&prev,
-		&next,
+		&e.PreviousID,
+		&e.NextID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Exercise{}, fmt.Errorf("WithID: %w", ErrNotFound)
 		}
 		return Exercise{}, fmt.Errorf("WithID: %w", err)
-	}
-
-	if prev != 0 {
-		var pRef ExerciseRef
-
-		q, args, err = tmpl.Compile(refStmt, prev)
-		if err != nil {
-			return Exercise{}, fmt.Errorf("WithID: %w", err)
-		}
-
-		if err := ds.db.QueryRow(q, args...).Scan(&pRef.ID, &pRef.Name); err != nil {
-			return Exercise{}, fmt.Errorf("WithID: %w", err)
-		}
-
-		e.Previous = pRef
-	}
-
-	if next != 0 {
-		var nRef ExerciseRef
-
-		q, args, err = tmpl.Compile(refStmt, next)
-		if err != nil {
-			return Exercise{}, fmt.Errorf("WithID: %w", err)
-		}
-
-		if err := ds.db.QueryRow(q, args...).Scan(&nRef.ID, &nRef.Name); err != nil {
-			return Exercise{}, fmt.Errorf("WithID: %w", err)
-		}
-
-		e.Next = nRef
 	}
 
 	return e, nil
@@ -105,32 +65,26 @@ func (ds *SqliteExercises) WithID(id int) (Exercise, error) {
 // StoreExercise stores the given exrcise in the sqlite database
 // If the id already exists it updates the existing record
 // ErrMissingFields is returned when fields are missing
-func (ds *SqliteExercises) New(owner, workout int, name string,
-	weight float64, repetitions int,
-) (int, error) {
+func (ds *SqliteExercises) New(workout int, name string, weight float64, repetitions int) (int, error) {
 	const (
 		insertStmt = `
-    INSERT INTO exercises (owner, workout, name, weight, repetitions, previous, next)
-    VALUES ({{.Owner}}, {{.Workout}}, {{.Name}}, {{.Weight}}, {{.Repetitions}}, {{.Previous.ID}}, {{.Next.ID}});
-    `
-		updateNextStmt = `
-    UPDATE exercises
-    SET next = {{ .NextID }}
-    WHERE exercise_id = {{ .ID }}
+    INSERT INTO exercises (workout, name, weight, repetitions, previous, next)
+    VALUES ({{.Workout}}, {{.Name}}, {{.Weight}}, {{.Repetitions}}, {{.PreviousID}}, {{.NextID}})
     `
 		updatePreviousStmt = `
     UPDATE exercises
     SET previous = {{.PreviousID }}   
     WHERE exercise_id = {{ .ID }}
     `
+		updateNextStmt = `
+    UPDATE exercises
+    SET next = {{ .NextID }}
+    WHERE exercise_id = {{ .ID }}
+    `
 	)
 
-	if !ds.userExists(owner) {
-		return 0, fmt.Errorf("New: %w", ErrInvalidOwner)
-	}
-
 	if !ds.workoutExists(workout) {
-		return 0, fmt.Errorf("New: %w", ErrInvalidWorkout)
+		return 0, fmt.Errorf("New: workoutExists: %w", ErrNotFound)
 	}
 
 	if name == "" || weight <= 0 || repetitions <= 0 {
@@ -139,11 +93,11 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("New: %w", err)
 	}
 
 	// get last exercise in workout
-	tail, err := tail(ds, owner, workout)
+	tail, err := tail(ds, workout)
 	if err != nil {
 		return 0, fmt.Errorf("New: %w", err)
 	}
@@ -151,11 +105,10 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
 	// insert new exercise
 	tx, err := ds.db.Begin()
 	if err != nil {
-		return 0, nil
+		return 0, fmt.Errorf("New: begin transaction: %w", err)
 	}
 
 	x := Exercise{
-		Owner:       owner,
 		Workout:     workout,
 		Name:        name,
 		Weight:      weight,
@@ -165,19 +118,19 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
 	insert, args, err := tmpl.Compile(insertStmt, x)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("New: insert new exercise: %w", err)
+		return 0, fmt.Errorf("New: compile insert statement: %w", err)
 	}
 
 	res, err := tx.Exec(insert, args...)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("New: insert new exercise: %w", err)
+		return 0, fmt.Errorf("New: execute insert new: %w", err)
 	}
 
 	newID, err := res.LastInsertId()
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("New: insert new exercise: %w", err)
+		return 0, fmt.Errorf("New: last id: %w", err)
 	}
 
 	// update exercise references
@@ -193,13 +146,13 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
 		patchNew, args, err := tmpl.Compile(updatePreviousStmt, newExPatch)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("New: patch new exercise: %w", err)
+			return 0, fmt.Errorf("New: compile previous statement: %w", err)
 		}
 
 		_, err = tx.Exec(patchNew, args...)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("New: patch new exercise: %w", err)
+			return 0, fmt.Errorf("New: execute patch new exercise: %w", err)
 		}
 
 		oldExPatch := struct {
@@ -213,13 +166,13 @@ func (ds *SqliteExercises) New(owner, workout int, name string,
 		patchOld, args, err := tmpl.Compile(updateNextStmt, oldExPatch)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("New: patch old exercise: %w", err)
+			return 0, fmt.Errorf("New: compile next statement: %w", err)
 		}
 
 		_, err = tx.Exec(patchOld, args...)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("New: patch old exercise: %w", err)
+			return 0, fmt.Errorf("New: execute patch last exercise: %w", err)
 		}
 	}
 
@@ -376,19 +329,14 @@ func (ds *SqliteExercises) Delete(id int) error {
 	return nil
 }
 
-// TODO: Implement
-func (ds *SqliteExercises) Swap(i int, j int) error {
-	return nil
-}
-
 // tail returns last exercise in linked list or empty exercise if
 // no exercises exists for that workout
-func tail(ds *SqliteExercises, owner, workout int) (Exercise, error) {
+func tail(ds *SqliteExercises, workout int) (Exercise, error) {
 	const (
 		tailStmt = `
     SELECT exercise_id   
     FROM exercises
-    WHERE owner={{.Owner}} AND workout={{.Workout}} AND next=0
+    WHERE workout={{ . }} AND next=0
     `
 	)
 
@@ -397,13 +345,8 @@ func tail(ds *SqliteExercises, owner, workout int) (Exercise, error) {
 		return Exercise{}, err
 	}
 
-	data := struct {
-		Owner   int
-		Workout int
-	}{owner, workout}
-
 	// find last exercise if at least one in user workout
-	q, args, err := tmpl.Compile(tailStmt, data)
+	q, args, err := tmpl.Compile(tailStmt, workout)
 	if err != nil {
 		return Exercise{}, fmt.Errorf("tail: %w", err)
 	}

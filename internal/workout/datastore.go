@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	ErrUserNotExist    = errors.New("user doesn't exist")
-	ErrWorkoutNotExist = errors.New("workout doesn't exist")
-	ErrMissingFields   = errors.New("missing required fields")
+	ErrInvalidID     = errors.New("invalid workout id")
+	ErrNotFound      = errors.New("workout doesn't exist")
+	ErrUserNotFound  = errors.New("user doesn't exist")
+	ErrMissingFields = errors.New("missing required fields")
 )
 
 type Workouts interface {
@@ -18,9 +19,9 @@ type Workouts interface {
 }
 
 type Retreiver interface {
-	Exercises(userID int, workoutID int) ([]exercise.Exercise, error)
+	WorkoutExercises(workoutID int) ([]exercise.Exercise, error)
 }
 
 type Storer interface {
-	New(userID int, name string) (int, error)
+	New(owner int, name string) (int, error)
 }

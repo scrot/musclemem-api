@@ -20,13 +20,13 @@ func TestRetreiveExerciseWithID(t *testing.T) {
 
 	xs.WithUser(t, user.User{ID: 1})
 
-	xs.WithWorkout(t, workout.Workout{ID: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
 
-	e1 := exercise.Exercise{ID: 1, Owner: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
-	e2 := exercise.Exercise{ID: 2, Owner: 1, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10, Next: exercise.ExerciseRef{}, Previous: exercise.ExerciseRef{}}
+	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8}
+	e2 := exercise.Exercise{ID: 2, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10}
 
-	e1.Next = e2.ToRef()
-	e2.Previous = e1.ToRef()
+	e1.NextID = e2.ID
+	e2.PreviousID = e1.ID
 
 	xs.WithExercise(t, e1)
 	xs.WithExercise(t, e2)
@@ -45,7 +45,7 @@ func TestRetreiveExerciseWithID(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			x, err := xs.WithID(c.exerciseID)
+			x, err := xs.Exercises.WithID(c.exerciseID)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v', but got '%v'", c.expectedErr, err)
 			}
@@ -64,39 +64,28 @@ func TestStoringNewExercise(t *testing.T) {
 
 	xs.WithUser(t, user.User{ID: 1})
 
-	xs.WithWorkout(t, workout.Workout{ID: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
 
-	e1 := exercise.Exercise{Owner: 1, Workout: 1, Name: "First", Weight: 80.0, Repetitions: 10}
-	e2 := exercise.Exercise{Owner: 1, Workout: 1, Name: "Second", Weight: 80.0, Repetitions: 10}
-	e3 := exercise.Exercise{Owner: 1, Workout: 1, Name: "Third", Weight: 80.0, Repetitions: 10}
+	e1 := exercise.Exercise{Workout: 1, Name: "First", Weight: 80.0, Repetitions: 10}
+	e2 := exercise.Exercise{Workout: 1, Name: "Second", Weight: 80.0, Repetitions: 10}
+	e3 := exercise.Exercise{Workout: 1, Name: "Third", Weight: 80.0, Repetitions: 10}
+	em := exercise.Exercise{Workout: 1, Name: "Missing"}
+	eiw := exercise.Exercise{Workout: 2, Name: "Invalid Workout", Weight: 80.0, Repetitions: 10}
 
-	em := exercise.Exercise{Owner: 1, Workout: 1, Name: "Missing"}
-
-	eiw := exercise.Exercise{Owner: 1, Workout: 2, Name: "Invalid Workout", Weight: 80.0, Repetitions: 10}
-	eio := exercise.Exercise{Owner: 2, Workout: 1, Name: "Invalid Owner", Weight: 80.0, Repetitions: 10}
-
-	r0 := map[int][]exercise.ExerciseRef{}
-	r1 := map[int][]exercise.ExerciseRef{}
-	r2 := map[int][]exercise.ExerciseRef{
-		1: {exercise.ExerciseRef{}, exercise.ExerciseRef{2, "Second"}},
-		2: {exercise.ExerciseRef{1, "First"}, exercise.ExerciseRef{}},
-	}
-	rn := map[int][]exercise.ExerciseRef{
-		1: {exercise.ExerciseRef{}, exercise.ExerciseRef{2, "Second"}},
-		2: {exercise.ExerciseRef{1, "First"}, exercise.ExerciseRef{3, "Third"}},
-		3: {exercise.ExerciseRef{2, "Second"}, exercise.ExerciseRef{}},
-	}
+	r0 := map[int][]int{}
+	r1 := map[int][]int{}
+	r2 := map[int][]int{1: {0, 2}, 2: {1, 0}}
+	rn := map[int][]int{1: {0, 2}, 2: {1, 3}, 3: {2, 0}}
 
 	cs := []struct {
 		name          string
 		exercise      exercise.Exercise
 		expectedNewID bool
-		expectedRefs  map[int][]exercise.ExerciseRef
+		expectedRefs  map[int][]int
 		expectedErr   error
 	}{
 		{"ErrorIfMissingField", em, false, r0, exercise.ErrMissingFields},
-		{"ErrorIfInvalidWorkout", eiw, false, r0, exercise.ErrInvalidWorkout},
-		{"ErrorIfInvalidOwner", eio, false, r0, exercise.ErrInvalidOwner},
+		{"ErrorIfInvalidWorkout", eiw, false, r0, exercise.ErrNotFound},
 		{"WorkoutWithOneExercise", e1, true, r1, nil},
 		{"WorkoutWithTwoExercises", e2, true, r2, nil},
 		{"WorkoutWithMoreExercises", e3, true, rn, nil},
@@ -104,7 +93,7 @@ func TestStoringNewExercise(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			id, err := xs.Exercises.New(c.exercise.Owner, c.exercise.Workout,
+			id, err := xs.Exercises.New(c.exercise.Workout,
 				c.exercise.Name, c.exercise.Weight, c.exercise.Repetitions)
 
 			if !errors.Is(err, c.expectedErr) {
@@ -118,19 +107,19 @@ func TestStoringNewExercise(t *testing.T) {
 
 			// compare all workout exercises references
 			for k, v := range c.expectedRefs {
-				e, err := xs.WithID(k)
+				e, err := xs.Exercises.WithID(k)
 				if err != nil {
 					t.Errorf("expected no error but got '%v'", err)
 				}
 
 				prev := v[0]
-				if e.Previous.Name != prev.Name {
-					t.Errorf("exercise %d expected previous '%s' but got '%s'", k, prev.Name, e.Previous.Name)
+				if e.PreviousID != prev {
+					t.Errorf("exercise %d expected previous '%d' but got '%d'", k, prev, e.PreviousID)
 				}
 
 				next := v[1]
-				if e.Next.Name != next.Name {
-					t.Errorf("exercise %d expected next '%s' but got '%s'", k, next.Name, e.Next.Name)
+				if e.NextID != next {
+					t.Errorf("exercise %d expected next '%d' but got '%d'", k, next, e.NextID)
 				}
 			}
 		})
@@ -142,8 +131,8 @@ func TestChangingExerciseName(t *testing.T) {
 
 	xs := internal.NewMockSqliteDatastore(t)
 	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Owner: 1, Workout: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
 
 	cs := []struct {
 		name         string
@@ -160,12 +149,12 @@ func TestChangingExerciseName(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.ChangeName(c.exerciseID, c.exerciseName); !errors.Is(err, c.expectedErr) {
+			if err := xs.Exercises.ChangeName(c.exerciseID, c.exerciseName); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
 			var name string
-			xs.QueryRow("SELECT name FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&name)
+			xs.DB.QueryRow("SELECT name FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&name)
 			if name != c.expected {
 				t.Errorf("expected name '%s' but got '%s'", c.expected, name)
 			}
@@ -178,8 +167,8 @@ func TestUpdatingWeight(t *testing.T) {
 
 	xs := internal.NewMockSqliteDatastore(t)
 	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Owner: 1, Workout: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
 
 	cs := []struct {
 		name           string
@@ -196,12 +185,12 @@ func TestUpdatingWeight(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.UpdateWeight(c.exerciseID, c.exerciseWeight); !errors.Is(err, c.expectedErr) {
+			if err := xs.Exercises.UpdateWeight(c.exerciseID, c.exerciseWeight); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
 			var weight float64
-			xs.QueryRow("SELECT weight FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&weight)
+			xs.DB.QueryRow("SELECT weight FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&weight)
 			if weight != c.expected {
 				t.Errorf("expected weight '%.0f' but got '%.0f'", c.expected, weight)
 			}
@@ -214,8 +203,8 @@ func TestUpdateRepetitions(t *testing.T) {
 
 	xs := internal.NewMockSqliteDatastore(t)
 	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Owner: 1, Workout: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
 
 	cs := []struct {
 		name                string
@@ -232,12 +221,12 @@ func TestUpdateRepetitions(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.UpdateRepetitions(c.exerciseID, c.exerciseRepetitions); !errors.Is(err, c.expectedErr) {
+			if err := xs.Exercises.UpdateRepetitions(c.exerciseID, c.exerciseRepetitions); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
 			var reps int
-			xs.QueryRow("SELECT repetitions FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&reps)
+			xs.DB.QueryRow("SELECT repetitions FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&reps)
 			if reps != c.expected {
 				t.Errorf("expected repetitions '%d' but got '%d'", c.expected, reps)
 			}
@@ -250,8 +239,8 @@ func TestDeletingExercise(t *testing.T) {
 
 	xs := internal.NewMockSqliteDatastore(t)
 	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Owner: 1, Workout: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
 
 	cs := []struct {
 		name           string
@@ -267,12 +256,12 @@ func TestDeletingExercise(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.Delete(c.input); !errors.Is(err, c.expectedErr) {
+			if err := xs.Exercises.Delete(c.input); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected %q but got %q", c.expectedErr, err)
 			}
 
 			var found bool
-			err := xs.QueryRow("SELECT 1 FROM exercises WHERE exercise_id=$1", c.input).Scan(&found)
+			err := xs.DB.QueryRow("SELECT 1 FROM exercises WHERE exercise_id=$1", c.input).Scan(&found)
 			if !errors.Is(err, sql.ErrNoRows) {
 				t.Errorf("unexpected error got %q", err)
 			}
@@ -284,26 +273,12 @@ func TestDeletingExercise(t *testing.T) {
 	}
 }
 
-func TestInsertExerciseBetween(t *testing.T) {
+func TestInsertBefore(t *testing.T) {
 	t.Parallel()
-
-	// insert between 0 and 0
-	// insert between 0 and x
-	// insert between x and y
-	// insert between y and 0
-	// > Generic situation for New
-	// > New covers 0 and 0 and y and 0
-	t.Error("TODO: insert new exercise between x and y")
+	t.Error("TODO: insert after ID")
 }
 
-func TestMoveExerciseUp(t *testing.T) {
-	// more to head of list
-	// don't move if at head
-	t.Error("TODO: move exercise up")
-}
-
-func TestMoveExerciseDown(t *testing.T) {
-	// move to tail of list
-	// don't move if at tail
-	t.Error("TODO: move exercise down")
+func TestInsertAfter(t *testing.T) {
+	t.Parallel()
+	t.Error("TODO: insert after ID")
 }

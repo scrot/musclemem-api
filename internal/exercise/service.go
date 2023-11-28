@@ -15,35 +15,34 @@ import (
 
 // Exercise contains details of a single workout exercise
 // an exercise is a node in a linked list, determining the order
-type (
-	Exercise struct {
-		ID          int         `json:"exercise-id" validate:"gt=0"`
-		Workout     int         `json:"workout-id" validate:"required"`
-		Name        string      `json:"name" validate:"required"`
-		Weight      float64     `json:"weight" validate:"required"`
-		Repetitions int         `json:"repetitions" validate:"required"`
-		Next        ExerciseRef `json:"next,omitempty"`
-		Previous    ExerciseRef `json:"previous,omitempty"`
-	}
-
-	ExerciseRef struct {
-		ID   int    `json:"exercise-id"`
-		Name string `json:"name"`
-	}
-)
-
-// ToRef returns the meta-data of a given Exercise
-func (e Exercise) ToRef() ExerciseRef {
-	return ExerciseRef{e.ID, e.Name}
+type Exercise struct {
+	ID          int
+	Workout     int     `json:"workout-id" validate:"required"`
+	Name        string  `json:"name" validate:"required"`
+	Weight      float64 `json:"weight" validate:"required"`
+	Repetitions int     `json:"repetitions" validate:"required"`
+	NextID      int
+	PreviousID  int
 }
 
-// ToExercise returns the excercise belonging to the reference
-func (er ExerciseRef) ToExercise(xs Exercises) (Exercise, error) {
-	x, err := xs.WithID(er.ID)
+// Next returns next Exercise node in linked list
+// returns empty exercise if already at the tail
+func (e Exercise) Next(r Retreiver) Exercise {
+	x, err := r.WithID(e.NextID)
 	if err != nil {
-		return Exercise{}, err
+		return Exercise{}
 	}
-	return x, nil
+	return x
+}
+
+// Previous returns previous Exercise node in linked list
+// returns empty exercise if already at the head
+func (e Exercise) Previous(r Retreiver) Exercise {
+	x, err := r.WithID(e.PreviousID)
+	if err != nil {
+		return Exercise{}
+	}
+	return x
 }
 
 type Service struct {
@@ -120,7 +119,7 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := s.exercises.New(e.Owner, e.Workout, e.Name, e.Weight, e.Repetitions)
+	id, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
 	if err != nil {
 		s.writeInternalError(w, err)
 		return

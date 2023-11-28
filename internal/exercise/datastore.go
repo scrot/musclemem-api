@@ -10,7 +10,7 @@ var (
 	ErrInvalidWorkout = errors.New("workout does not exist")
 	ErrNegativeValue  = errors.New("value is negative")
 	ErrInvalidID      = errors.New("invalid exercise id")
-	ErrNotFound       = errors.New("exercise not found")
+	ErrNotFound       = errors.New("not found")
 	ErrMissingFields  = errors.New("missing required fields")
 )
 
@@ -59,7 +59,6 @@ type Deleter interface {
 
 // Implementation of the Orderer interface allows to reorder exercise positions
 type Orderer interface {
-	// SwapExercises swaps the position of two exercises
-	// that belong to a user workout
-	Swap(id1 int, id2 int) error
+	// TODO: InsertAfter
+	// TODO: InsertBefore
 }

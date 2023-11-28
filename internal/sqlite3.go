@@ -84,9 +84,9 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*sql.DB, error) {
 ///
 
 type MockSqliteDatastore struct {
-	workout.Workouts
-	exercise.Exercises
-	*sql.DB
+	Workouts  workout.Workouts
+	Exercises exercise.Exercises
+	DB        *sql.DB
 }
 
 func NewMockSqliteDatastore(t *testing.T) *MockSqliteDatastore {
@@ -126,7 +126,7 @@ func (ds *MockSqliteDatastore) WithUser(t *testing.T, u user.User) {
 		t.Fatalf("expected no error but got %s", err)
 	}
 
-	if _, err := ds.Exec(q, args...); err != nil {
+	if _, err := ds.DB.Exec(q, args...); err != nil {
 		t.Fatalf("expected no error but got %s", err)
 	}
 }
@@ -135,8 +135,8 @@ func (ds *MockSqliteDatastore) WithWorkout(t *testing.T, w workout.Workout) {
 	t.Helper()
 
 	const stmt = `
-    INSERT INTO workouts (workout_id, name)
-    VALUES({{.ID}}, {{.Name}})
+    INSERT INTO workouts (workout_id, owner, name)
+    VALUES({{.ID}}, {{.Owner}}, {{.Name}})
     `
 
 	tmpl, _ := tqla.New()
@@ -145,7 +145,7 @@ func (ds *MockSqliteDatastore) WithWorkout(t *testing.T, w workout.Workout) {
 		t.Fatalf("expected no error but got %q", err)
 	}
 
-	if _, err := ds.Exec(q, args...); err != nil {
+	if _, err := ds.DB.Exec(q, args...); err != nil {
 		t.Fatalf("expected no error but got %q", err)
 	}
 }
@@ -154,16 +154,15 @@ func (ds *MockSqliteDatastore) WithExercise(t *testing.T, e exercise.Exercise) {
 	t.Helper()
 
 	const stmt = `
-    INSERT INTO exercises (exercise_id, owner, workout, name, weight, repetitions, previous, next)
+    INSERT INTO exercises (exercise_id, workout, name, weight, repetitions, previous, next)
     VALUES (
     {{.ID}},
-    {{.Owner}},
     {{.Workout}},
     {{.Name}},
     {{.Weight}},
     {{.Repetitions}},
-    {{.Previous.ID}},
-    {{.Next.ID}}    
+    {{.PreviousID}},
+    {{.NextID}}    
     )
   `
 
@@ -173,7 +172,7 @@ func (ds *MockSqliteDatastore) WithExercise(t *testing.T, e exercise.Exercise) {
 		t.Fatalf("expected no error but got %q", err)
 	}
 
-	if _, err := ds.Exec(q, args...); err != nil {
+	if _, err := ds.DB.Exec(q, args...); err != nil {
 		t.Fatalf("expected no error but got %q", err)
 	}
 }
@@ -192,7 +191,7 @@ func (ds *MockSqliteDatastore) TablesEqual(t *testing.T, wantTables []string) ([
     name NOT LIKE 'sqlite_%';
   `
 
-	rows, err := ds.Query(stmt)
+	rows, err := ds.DB.Query(stmt)
 	if err != nil {
 		t.Fatalf("expected no error but got %s", err)
 	}

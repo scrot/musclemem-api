@@ -3,6 +3,7 @@ package workout
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/VauntDev/tqla"
 	"github.com/scrot/musclemem-api/internal/exercise"
@@ -16,92 +17,89 @@ func NewSqliteWorkouts(db *sql.DB) *SqliteWorkouts {
 	return &SqliteWorkouts{db}
 }
 
-func (ds *SqliteWorkouts) New(userID int, name string) (int, error) {
+func (ds *SqliteWorkouts) New(owner int, name string) (int, error) {
 	return 0, errors.New("todo")
 }
 
-func (ds *SqliteWorkouts) Exercises(userID, workoutID int) ([]exercise.Exercise, error) {
+func (ds *SqliteWorkouts) ByID(id int) (Workout, error) {
+	const stmt = `
+    SELECT workout_id, owner, name
+    FROM workouts
+    WHERE workout_id = {{ . }}
+    `
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return Workout{}, fmt.Errorf("ByID: %w", err)
+	}
+
+	q, args, err := tmpl.Compile(stmt, id)
+	if err != nil {
+		return Workout{}, fmt.Errorf("ByID: compile statement: %w", err)
+	}
+
+	var w Workout
+	if err := ds.db.QueryRow(q, args...).Scan(&w.ID, &w.Owner, &w.Name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Workout{}, ErrNotFound
+		}
+		return Workout{}, fmt.Errorf("ByID: query workout: %w", err)
+	}
+
+	return w, nil
+}
+
+func (ds *SqliteWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, error) {
 	const (
 		selectStmt = `
-    SELECT exercise_id, owner, workout, name, weight, repetitions, previous, next
+    SELECT exercise_id, workout, name, weight, repetitions, previous, next
     FROM exercises
-    WHERE owner = {{ .OwnerID }} AND workout = {{ .WorkoutID }}
-    `
-		selectRefsStmt = `
-    SELECT exercise_id, name
-    FROM exercises
-    WHERE exercise_id = {{.}}
+    WHERE workout = {{ .ID }}
     `
 	)
 
-	if userID <= 0 {
-		return []exercise.Exercise{}, ErrUserNotExist
+	if workoutID <= 0 {
+		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: %w", ErrInvalidID)
 	}
 
-	if workoutID <= 0 {
-		return []exercise.Exercise{}, ErrWorkoutNotExist
+	w, err := ds.ByID(workoutID)
+	if err != nil {
+		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: get workout: %w", err)
 	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
-		return []exercise.Exercise{}, err
+		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: %w", err)
 	}
 
-	data := struct {
-		OwnerID   int
-		WorkoutID int
-	}{userID, workoutID}
-
-	q, args, err := tmpl.Compile(selectStmt, data)
+	q, args, err := tmpl.Compile(selectStmt, w)
 	if err != nil {
-		return []exercise.Exercise{}, err
+		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: compile select statement: %w", err)
 	}
 
 	rs, err := ds.db.Query(q, args...)
 	if err != nil {
-		return []exercise.Exercise{}, err
+		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: query workout exercises: %w", err)
 	}
 
 	var xs []exercise.Exercise
 	for rs.Next() {
-		var (
-			x          exercise.Exercise
-			prev, next int
+		var x exercise.Exercise
+
+		err := rs.Scan(
+			&x.ID,
+			&x.Workout,
+			&x.Name,
+			&x.Weight,
+			&x.Repetitions,
+			&x.PreviousID,
+			&x.NextID,
 		)
-
-		err := rs.Scan(&x.ID, &x.Owner, &x.Workout, &x.Name, &x.Weight,
-			&x.Repetitions, &prev, &next)
 		if err != nil {
-			return []exercise.Exercise{}, err
-		}
-
-		if prev != 0 {
-			q, args, err := tmpl.Compile(selectRefsStmt, prev)
-			if err != nil {
-				return []exercise.Exercise{}, err
-			}
-
-			if err := ds.db.QueryRow(q, args...).Scan(&x.Previous.ID, &x.Previous.Name); err != nil {
-				return []exercise.Exercise{}, err
-			}
-		}
-
-		if next != 0 {
-			q, args, err := tmpl.Compile(selectRefsStmt, next)
-			if err != nil {
-				return []exercise.Exercise{}, err
-			}
-
-			if err := ds.db.QueryRow(q, args...).Scan(&x.Next.ID, &x.Next.Name); err != nil {
-				return []exercise.Exercise{}, err
-			}
+			return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: scan row: %w", err)
 		}
 
 		xs = append(xs, x)
-	}
-
-	if len(xs) == 0 {
-		return []exercise.Exercise{}, ErrWorkoutNotExist
 	}
 
 	return xs, nil
