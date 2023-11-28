@@ -284,9 +284,26 @@ func TestDeletingExercise(t *testing.T) {
 	}
 }
 
-func TestSwapExercises(t *testing.T) {
+func TestInsertExerciseBetween(t *testing.T) {
 	t.Parallel()
 
-	// Only swap if i and j belong to same workout
-	t.Error("Todo")
+	// insert between 0 and 0
+	// insert between 0 and x
+	// insert between x and y
+	// insert between y and 0
+	// > Generic situation for New
+	// > New covers 0 and 0 and y and 0
+	t.Error("TODO: insert new exercise between x and y")
+}
+
+func TestMoveExerciseUp(t *testing.T) {
+	// more to head of list
+	// don't move if at head
+	t.Error("TODO: move exercise up")
+}
+
+func TestMoveExerciseDown(t *testing.T) {
+	// move to tail of list
+	// don't move if at tail
+	t.Error("TODO: move exercise down")
 }

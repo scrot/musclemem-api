@@ -1,5 +1,9 @@
-MAIN_PACKAGE_PATH := ./cmd/server
-BINARY_NAME := musclemem-api
+SERVER_PACKAGE_PATH := ./cmd/server
+SERVER_BINARY := musclemem-api
+
+CLI_PACKAGE_PATH := ./cmd/cli
+CLI_BINARY := musclemem-cli
+
 OUTPUT_PATH := /tmp/${BINARY_NAME}
 
 GITHUB_UNAME := scrot
@@ -59,31 +63,30 @@ test/cover:
 	go tool cover -html=${OUTPUT_PATH}/coverage.out
 
 ## build: build the application
-.PHONY: build
-build: tidy
-	go build -ldflags='-X main.version=$(shell date +"%d%m%y")-snapshot \
-		-X main.maintainer=rdewildt' \
-		-o=${OUTPUT_PATH} ${MAIN_PACKAGE_PATH}
+.PHONY: build/server
+build/server: tidy
+	@go build -ldflags='-X main.version=$(shell git rev-parse --short HEAD)-snapshot' \
+		-o=${OUTPUT_PATH}/${SERVER_BINARY} ${SERVER_PACKAGE_PATH}
 
 ## run: run the application
-.PHONY: run
-run: build
-	${OUTPUT_PATH}
+.PHONY: run/server
+run/server: build/server
+	@${OUTPUT_PATH}/${SERVER_BINARY}
 
 ## run/live: run the application with reloading on file changes
 .PHONY: run/live
 run/live:
-	go run github.com/cosmtrek/air@v1.43.0 \
-		--build.cmd "make build" --build.bin "${OUTPUT_PATH}" --build.delay "100" \
+	@go run github.com/cosmtrek/air@lastest \
+		--build.cmd "make build/server" --build.bin "${OUTPUT_PATH}/${SERVER_BINARY}" --build.delay "100" \
 		--build.exclude_dir "" \
-		--build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" \
+		--build.include_ext "go, sql" \
 		--misc.clean_on_exit "true"
 
 # run/docker: create and run docker image in docker environment
 .PHONY: run/docker
 run/docker: build
-	docker build -t ${BINARY_NAME} -f Dockerfile.goreleaser .	
-	docker run --rm -p 8080:80 ${BINARY_NAME}
+	docker build -t ${SERVER_BINARY} -f Dockerfile.goreleaser .	
+	docker run --rm -p 8080:80 ${SERVER_BINARY}
 
 # run/kubernetes: create and run project in k8s environment
 .PHONY: run/kubernetes

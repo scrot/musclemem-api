@@ -13,6 +13,39 @@ import (
 	"github.com/scrot/jsonapi"
 )
 
+// Exercise contains details of a single workout exercise
+// an exercise is a node in a linked list, determining the order
+type (
+	Exercise struct {
+		ID          int         `json:"exercise-id" validate:"gt=0"`
+		Workout     int         `json:"workout-id" validate:"required"`
+		Name        string      `json:"name" validate:"required"`
+		Weight      float64     `json:"weight" validate:"required"`
+		Repetitions int         `json:"repetitions" validate:"required"`
+		Next        ExerciseRef `json:"next,omitempty"`
+		Previous    ExerciseRef `json:"previous,omitempty"`
+	}
+
+	ExerciseRef struct {
+		ID   int    `json:"exercise-id"`
+		Name string `json:"name"`
+	}
+)
+
+// ToRef returns the meta-data of a given Exercise
+func (e Exercise) ToRef() ExerciseRef {
+	return ExerciseRef{e.ID, e.Name}
+}
+
+// ToExercise returns the excercise belonging to the reference
+func (er ExerciseRef) ToExercise(xs Exercises) (Exercise, error) {
+	x, err := xs.WithID(er.ID)
+	if err != nil {
+		return Exercise{}, err
+	}
+	return x, nil
+}
+
 type Service struct {
 	logger    *slog.Logger
 	exercises Exercises

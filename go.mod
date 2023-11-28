@@ -2,15 +2,13 @@ module github.com/scrot/musclemem-api
 
 go 1.21.0
 
-require (
-	github.com/caarlos0/env/v9 v9.0.0
-	github.com/lmittmann/tint v1.0.1
-)
+require github.com/lmittmann/tint v1.0.1
 
 require go.uber.org/automaxprocs v1.5.3
 
 require (
 	github.com/VauntDev/tqla v0.0.1
+	github.com/caarlos0/env/v10 v10.0.0
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/golang-migrate/migrate/v4 v4.16.2
