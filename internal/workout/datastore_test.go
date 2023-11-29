@@ -24,8 +24,9 @@ func TestCreatingNewWorkout(t *testing.T) {
 		expectedNew bool
 		expectedErr error
 	}{
-		{"ErrorIfNoUserID", 2, "", false, workout.ErrUserNotFound},
-		{"ErrorIfNonExistingUser", 2, "", false, workout.ErrUserNotFound},
+		{"ErrorIfNegativeUserID", -1, "name", false, workout.ErrInvalidID},
+		{"ErrorIfZeroUserID", 0, "name", false, workout.ErrMissingFields},
+		{"ErrorIfUserNotExists", 2, "name", false, workout.ErrNotFound},
 		{"ErrorIfNoName", 1, "", false, workout.ErrMissingFields},
 		{"Valid", 1, "NEW", true, nil},
 	}
@@ -40,6 +41,39 @@ func TestCreatingNewWorkout(t *testing.T) {
 			newID := id > 0
 			if newID != c.expectedNew {
 				t.Errorf("expected new id")
+			}
+		})
+	}
+}
+
+func TestWorkoutByID(t *testing.T) {
+	t.Parallel()
+
+	xs := internal.NewMockSqliteDatastore(t)
+	xs.WithUser(t, user.User{ID: 1})
+	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+
+	cs := []struct {
+		name        string
+		id          int
+		expected    workout.Workout
+		expectedErr error
+	}{
+		{"ErrorOnNegativeID", -1, workout.Workout{}, workout.ErrInvalidID},
+		{"ErrorOnZeroID", 0, workout.Workout{}, workout.ErrMissingFields},
+		{"ErrorOnUserNotExists", 2, workout.Workout{}, workout.ErrNotFound},
+		{"WorkoutOnExists", 1, workout.Workout{ID: 1, Owner: 1}, nil},
+	}
+
+	for _, c := range cs {
+		t.Run(c.name, func(t *testing.T) {
+			w, err := xs.Workouts.ByID(c.id)
+			if !errors.Is(err, c.expectedErr) {
+				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
+			}
+
+			if !cmp.Equal(w, c.expected) {
+				t.Errorf("expected %v but got %v", c.expected, w)
 			}
 		})
 	}
@@ -98,5 +132,20 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 }
 
 func TestChangingName(t *testing.T) {
-	t.Error("TODO: change workout name")
+	mock := internal.NewMockSqliteDatastore(t)
+	mock.WithUser(t, user.User{ID: 1})
+	mock.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+
+	if err := mock.Workouts.ChangeName(1, "NEW"); err != nil {
+		t.Fatalf("expected no error but got '%v'", err)
+	}
+
+	w, err := mock.Workouts.ByID(1)
+	if err != nil {
+		t.Fatalf("expected no error but got '%v'", err)
+	}
+
+	if w.Name != "NEW" {
+		t.Errorf("expected updated field but got '%s'", w.Name)
+	}
 }

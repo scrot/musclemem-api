@@ -9,31 +9,75 @@ import (
 	"github.com/scrot/musclemem-api/internal/exercise"
 )
 
-type SqliteWorkouts struct {
+type SQLWorkouts struct {
 	db *sql.DB
 }
 
-func NewSQLWorkouts(db *sql.DB) *SqliteWorkouts {
-	return &SqliteWorkouts{db}
+func NewSQLWorkouts(db *sql.DB) *SQLWorkouts {
+	return &SQLWorkouts{db}
 }
 
-func (ds *SqliteWorkouts) New(owner int, name string) (int, error) {
-	return 0, errors.New("todo")
+func (ds *SQLWorkouts) New(owner int, name string) (int, error) {
+	const stmt = `
+    INSERT INTO workouts (owner, name)
+    VALUES ({{ .Owner }}, {{ .Name }})
+    `
+
+	if owner < 0 {
+		return 0, fmt.Errorf("New: %w", ErrInvalidID)
+	}
+
+	if owner == 0 || name == "" {
+		return 0, fmt.Errorf("New: %w", ErrMissingFields)
+	}
+
+	if !ds.userExists(owner) {
+		return 0, fmt.Errorf("New: validate user: %w", ErrNotFound)
+	}
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return 0, fmt.Errorf("New: %w", err)
+	}
+
+	q, args, err := tmpl.Compile(stmt, Workout{Owner: owner, Name: name})
+	if err != nil {
+		return 0, fmt.Errorf("New: compile insert statement: %w", err)
+	}
+
+	res, err := ds.db.Exec(q, args...)
+	if err != nil {
+		return 0, fmt.Errorf("New: execute insert statement: %w", err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("New: get new id: %w", err)
+	}
+
+	return int(id), nil
 }
 
-func (ds *SqliteWorkouts) ByID(id int) (Workout, error) {
+func (ds *SQLWorkouts) ByID(workoutID int) (Workout, error) {
 	const stmt = `
     SELECT workout_id, owner, name
     FROM workouts
     WHERE workout_id = {{ . }}
     `
+	if workoutID < 0 {
+		return Workout{}, ErrInvalidID
+	}
+
+	if workoutID == 0 {
+		return Workout{}, ErrMissingFields
+	}
 
 	tmpl, err := tqla.New()
 	if err != nil {
 		return Workout{}, fmt.Errorf("ByID: %w", err)
 	}
 
-	q, args, err := tmpl.Compile(stmt, id)
+	q, args, err := tmpl.Compile(stmt, workoutID)
 	if err != nil {
 		return Workout{}, fmt.Errorf("ByID: compile statement: %w", err)
 	}
@@ -49,7 +93,7 @@ func (ds *SqliteWorkouts) ByID(id int) (Workout, error) {
 	return w, nil
 }
 
-func (ds *SqliteWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, error) {
+func (ds *SQLWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, error) {
 	const (
 		selectStmt = `
     SELECT exercise_id, workout, name, weight, repetitions, previous, next
@@ -103,4 +147,93 @@ func (ds *SqliteWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, 
 	}
 
 	return xs, nil
+}
+
+func (ws *SQLWorkouts) ChangeName(id int, name string) error {
+	const stmt = `
+    UPDATE workouts
+    SET name = {{ .Name }}
+    WHERE workout_id = {{ .ID }}
+    `
+	if id < 0 {
+		return fmt.Errorf("ChangeName: %w", ErrInvalidID)
+	}
+
+	if id == 0 || name == "" {
+		return fmt.Errorf("ChangeName: %w", ErrMissingFields)
+	}
+
+	if !ws.workoutExists(id) {
+		return fmt.Errorf("ChangeName: workout %d: %w", id, ErrNotFound)
+	}
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return fmt.Errorf("ChangeName: %w", err)
+	}
+
+	patch := struct {
+		ID   int
+		Name string
+	}{id, name}
+	q, args, err := tmpl.Compile(stmt, patch)
+	if err != nil {
+		return fmt.Errorf("ChangeName: compile update statement: %w", err)
+	}
+
+	if _, err := ws.db.Exec(q, args...); err != nil {
+		return fmt.Errorf("ChangeName: execute update name: %w", err)
+	}
+
+	return nil
+}
+
+func (ws *SQLWorkouts) userExists(userID int) bool {
+	const stmt = `
+  SELECT 1
+  FROM users
+  WHERE user_id = {{ . }}
+  `
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return false
+	}
+
+	q, args, err := tmpl.Compile(stmt, userID)
+	if err != nil {
+		return false
+	}
+
+	var exists bool
+	if err := ws.db.QueryRow(q, args...).Scan(&exists); err != nil {
+		return false
+	}
+
+	return exists
+}
+
+func (ws *SQLWorkouts) workoutExists(workoutID int) bool {
+	const stmt = `
+  SELECT 1
+  FROM workouts
+  WHERE workout_id = {{ . }}
+  `
+
+	tmpl, err := tqla.New()
+	if err != nil {
+		return false
+	}
+
+	q, args, err := tmpl.Compile(stmt, workoutID)
+	if err != nil {
+		return false
+	}
+
+	var exists bool
+	if err := ws.db.QueryRow(q, args...).Scan(&exists); err != nil {
+		return false
+	}
+
+	return exists
 }

@@ -1,6 +1,10 @@
 package user
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/scrot/musclemem-api/internal/workout"
+)
 
 // Collection of users
 type Users interface {
@@ -18,4 +22,8 @@ type Registerer interface {
 	// encrypting the password before storing. A new userID will
 	// be returned on success otherwise an error is thrown
 	Register(email, password string) (int, error)
+}
+
+type Retreiver interface {
+	UserWorkouts(userID int) ([]workout.Workout, error)
 }
