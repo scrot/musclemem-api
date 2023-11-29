@@ -13,7 +13,7 @@ type SqliteWorkouts struct {
 	db *sql.DB
 }
 
-func NewSqliteWorkouts(db *sql.DB) *SqliteWorkouts {
+func NewSQLWorkouts(db *sql.DB) *SqliteWorkouts {
 	return &SqliteWorkouts{db}
 }
 

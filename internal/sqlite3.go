@@ -86,6 +86,7 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*sql.DB, error) {
 type MockSqliteDatastore struct {
 	Workouts  workout.Workouts
 	Exercises exercise.Exercises
+	Users     user.Users
 	DB        *sql.DB
 }
 
@@ -106,10 +107,11 @@ func NewMockSqliteDatastore(t *testing.T) *MockSqliteDatastore {
 		t.Errorf("expected no error but got %q", err)
 	}
 
-	xs := exercise.NewSqliteExercises(db)
-	ws := workout.NewSqliteWorkouts(db)
+	xs := exercise.NewSQLExercises(db)
+	ws := workout.NewSQLWorkouts(db)
+	us := user.NewSQLUsers(db)
 
-	return &MockSqliteDatastore{ws, xs, db}
+	return &MockSqliteDatastore{ws, xs, us, db}
 }
 
 func (ds *MockSqliteDatastore) WithUser(t *testing.T, u user.User) {

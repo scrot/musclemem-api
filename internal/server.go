@@ -30,7 +30,7 @@ func NewServer(l *slog.Logger, listenAddr string) (*Server, error) {
 		return nil, fmt.Errorf("NewServer: new SQL database: %w", err)
 	}
 
-	xs := exercise.NewSqliteExercises(db)
+	xs := exercise.NewSQLExercises(db)
 	exerciseSvc := exercise.NewService(l, xs)
 
 	s := Server{
