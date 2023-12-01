@@ -5,17 +5,17 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/scrot/musclemem-api/internal"
 	"github.com/scrot/musclemem-api/internal/exercise"
-	"github.com/scrot/musclemem-api/internal/user"
+	"github.com/scrot/musclemem-api/internal/storage"
 	"github.com/scrot/musclemem-api/internal/workout"
 )
 
 func TestCreatingNewWorkout(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
-	xs.WithUser(t, user.User{ID: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
 
 	cs := []struct {
 		name        string
@@ -33,7 +33,7 @@ func TestCreatingNewWorkout(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			id, err := xs.Workouts.New(c.userID, c.workoutName)
+			id, err := ws.New(c.userID, c.workoutName)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
@@ -49,9 +49,10 @@ func TestCreatingNewWorkout(t *testing.T) {
 func TestWorkoutByID(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
-	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
 
 	cs := []struct {
 		name        string
@@ -67,7 +68,7 @@ func TestWorkoutByID(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			w, err := xs.Workouts.ByID(c.id)
+			w, err := ws.ByID(c.id)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
@@ -82,27 +83,20 @@ func TestWorkoutByID(t *testing.T) {
 func TestRetreivingWorkoutExercises(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "u1", "pwd")
+	mock.WithWorkout(t, 1, 1, "w1")
+	mock.WithWorkout(t, 2, 1, "w2")
+	mock.WithExercise(t, 1, 1, "w1e1", 100, 10, 0, 2)
+	mock.WithExercise(t, 2, 1, "w1e2", 100, 10, 1, 3)
+	mock.WithExercise(t, 3, 1, "w1e3", 100, 10, 2, 0)
+	mock.WithExercise(t, 4, 2, "w2e1", 100, 10, 0, 0)
 
-	xs.WithUser(t, user.User{ID: 1})
+	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "w1e1", Weight: 100, Repetitions: 10, PreviousID: 0, NextID: 2}
+	e2 := exercise.Exercise{ID: 2, Workout: 1, Name: "w1e2", Weight: 100, Repetitions: 10, PreviousID: 1, NextID: 3}
+	e3 := exercise.Exercise{ID: 3, Workout: 1, Name: "w1e3", Weight: 100, Repetitions: 10, PreviousID: 2, NextID: 0}
 
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 2, Owner: 1})
-
-	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8}
-	e2 := exercise.Exercise{ID: 2, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10}
-	e3 := exercise.Exercise{ID: 3, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10}
-	e4 := exercise.Exercise{ID: 4, Workout: 2, Name: "Interval", Weight: 80.0, Repetitions: 10}
-
-	e1.NextID = e2.ID
-	e2.PreviousID = e1.ID
-	e2.NextID = e3.ID
-	e3.PreviousID = e2.ID
-
-	xs.WithExercise(t, e1)
-	xs.WithExercise(t, e2)
-	xs.WithExercise(t, e3)
-	xs.WithExercise(t, e4)
+	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
 
 	cs := []struct {
 		name        string
@@ -119,7 +113,7 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			xs, err := xs.Workouts.WorkoutExercises(c.workoutID)
+			xs, err := ws.WorkoutExercises(c.workoutID)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
@@ -132,15 +126,17 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 }
 
 func TestChangingName(t *testing.T) {
-	mock := internal.NewMockSqliteDatastore(t)
-	mock.WithUser(t, user.User{ID: 1})
-	mock.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "u1", "pwd")
+	mock.WithWorkout(t, 1, 1, "w1")
 
-	if err := mock.Workouts.ChangeName(1, "NEW"); err != nil {
+	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
+
+	if err := ws.ChangeName(1, "NEW"); err != nil {
 		t.Fatalf("expected no error but got '%v'", err)
 	}
 
-	w, err := mock.Workouts.ByID(1)
+	w, err := ws.ByID(1)
 	if err != nil {
 		t.Fatalf("expected no error but got '%v'", err)
 	}

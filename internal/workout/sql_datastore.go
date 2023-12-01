@@ -5,19 +5,19 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/VauntDev/tqla"
 	"github.com/scrot/musclemem-api/internal/exercise"
+	"github.com/scrot/musclemem-api/internal/storage"
 )
 
 type SQLWorkouts struct {
-	db *sql.DB
+	*storage.SqliteDatastore
 }
 
-func NewSQLWorkouts(db *sql.DB) *SQLWorkouts {
+func NewSQLWorkouts(db *storage.SqliteDatastore) *SQLWorkouts {
 	return &SQLWorkouts{db}
 }
 
-func (ds *SQLWorkouts) New(owner int, name string) (int, error) {
+func (ws *SQLWorkouts) New(owner int, name string) (int, error) {
 	const stmt = `
     INSERT INTO workouts (owner, name)
     VALUES ({{ .Owner }}, {{ .Name }})
@@ -31,21 +31,16 @@ func (ds *SQLWorkouts) New(owner int, name string) (int, error) {
 		return 0, fmt.Errorf("New: %w", ErrMissingFields)
 	}
 
-	if !ds.userExists(owner) {
+	if !ws.userExists(owner) {
 		return 0, fmt.Errorf("New: validate user: %w", ErrNotFound)
 	}
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return 0, fmt.Errorf("New: %w", err)
-	}
-
-	q, args, err := tmpl.Compile(stmt, Workout{Owner: owner, Name: name})
+	q, args, err := ws.CompileStatement(stmt, Workout{Owner: owner, Name: name})
 	if err != nil {
 		return 0, fmt.Errorf("New: compile insert statement: %w", err)
 	}
 
-	res, err := ds.db.Exec(q, args...)
+	res, err := ws.Exec(q, args...)
 	if err != nil {
 		return 0, fmt.Errorf("New: execute insert statement: %w", err)
 	}
@@ -58,7 +53,7 @@ func (ds *SQLWorkouts) New(owner int, name string) (int, error) {
 	return int(id), nil
 }
 
-func (ds *SQLWorkouts) ByID(workoutID int) (Workout, error) {
+func (ws *SQLWorkouts) ByID(workoutID int) (Workout, error) {
 	const stmt = `
     SELECT workout_id, owner, name
     FROM workouts
@@ -72,18 +67,13 @@ func (ds *SQLWorkouts) ByID(workoutID int) (Workout, error) {
 		return Workout{}, ErrMissingFields
 	}
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return Workout{}, fmt.Errorf("ByID: %w", err)
-	}
-
-	q, args, err := tmpl.Compile(stmt, workoutID)
+	q, args, err := ws.CompileStatement(stmt, workoutID)
 	if err != nil {
 		return Workout{}, fmt.Errorf("ByID: compile statement: %w", err)
 	}
 
 	var w Workout
-	if err := ds.db.QueryRow(q, args...).Scan(&w.ID, &w.Owner, &w.Name); err != nil {
+	if err := ws.QueryRow(q, args...).Scan(&w.ID, &w.Owner, &w.Name); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Workout{}, ErrNotFound
 		}
@@ -93,7 +83,7 @@ func (ds *SQLWorkouts) ByID(workoutID int) (Workout, error) {
 	return w, nil
 }
 
-func (ds *SQLWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, error) {
+func (ws *SQLWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, error) {
 	const (
 		selectStmt = `
     SELECT exercise_id, workout, name, weight, repetitions, previous, next
@@ -106,22 +96,17 @@ func (ds *SQLWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, err
 		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: %w", ErrInvalidID)
 	}
 
-	w, err := ds.ByID(workoutID)
+	w, err := ws.ByID(workoutID)
 	if err != nil {
 		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: get workout: %w", err)
 	}
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: %w", err)
-	}
-
-	q, args, err := tmpl.Compile(selectStmt, w)
+	q, args, err := ws.CompileStatement(selectStmt, w)
 	if err != nil {
 		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: compile select statement: %w", err)
 	}
 
-	rs, err := ds.db.Query(q, args...)
+	rs, err := ws.Query(q, args...)
 	if err != nil {
 		return []exercise.Exercise{}, fmt.Errorf("WorkoutExercises: query workout exercises: %w", err)
 	}
@@ -167,21 +152,16 @@ func (ws *SQLWorkouts) ChangeName(id int, name string) error {
 		return fmt.Errorf("ChangeName: workout %d: %w", id, ErrNotFound)
 	}
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return fmt.Errorf("ChangeName: %w", err)
-	}
-
 	patch := struct {
 		ID   int
 		Name string
 	}{id, name}
-	q, args, err := tmpl.Compile(stmt, patch)
+	q, args, err := ws.CompileStatement(stmt, patch)
 	if err != nil {
 		return fmt.Errorf("ChangeName: compile update statement: %w", err)
 	}
 
-	if _, err := ws.db.Exec(q, args...); err != nil {
+	if _, err := ws.Exec(q, args...); err != nil {
 		return fmt.Errorf("ChangeName: execute update name: %w", err)
 	}
 
@@ -195,18 +175,13 @@ func (ws *SQLWorkouts) userExists(userID int) bool {
   WHERE user_id = {{ . }}
   `
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return false
-	}
-
-	q, args, err := tmpl.Compile(stmt, userID)
+	q, args, err := ws.CompileStatement(stmt, userID)
 	if err != nil {
 		return false
 	}
 
 	var exists bool
-	if err := ws.db.QueryRow(q, args...).Scan(&exists); err != nil {
+	if err := ws.QueryRow(q, args...).Scan(&exists); err != nil {
 		return false
 	}
 
@@ -220,18 +195,13 @@ func (ws *SQLWorkouts) workoutExists(workoutID int) bool {
   WHERE workout_id = {{ . }}
   `
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return false
-	}
-
-	q, args, err := tmpl.Compile(stmt, workoutID)
+	q, args, err := ws.CompileStatement(stmt, workoutID)
 	if err != nil {
 		return false
 	}
 
 	var exists bool
-	if err := ws.db.QueryRow(q, args...).Scan(&exists); err != nil {
+	if err := ws.QueryRow(q, args...).Scan(&exists); err != nil {
 		return false
 	}
 

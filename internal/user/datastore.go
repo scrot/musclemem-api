@@ -6,9 +6,10 @@ import (
 	"github.com/scrot/musclemem-api/internal/workout"
 )
 
-// Collection of users
+// Users represents the user repository
 type Users interface {
 	Registerer
+	Retreiver
 }
 
 var (
@@ -24,6 +25,8 @@ type Registerer interface {
 	Register(email, password string) (int, error)
 }
 
+// Retreiver implementations can query data
 type Retreiver interface {
+	// UserWorkouts returns all workouts that belong to the user
 	UserWorkouts(userID int) ([]workout.Workout, error)
 }

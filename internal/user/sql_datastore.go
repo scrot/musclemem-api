@@ -1,19 +1,19 @@
 package user
 
 import (
-	"database/sql"
 	"fmt"
 	"net/mail"
 
-	"github.com/VauntDev/tqla"
+	"github.com/scrot/musclemem-api/internal/storage"
+	"github.com/scrot/musclemem-api/internal/workout"
 )
 
 type SQLUsers struct {
-	db *sql.DB
+	*storage.SqliteDatastore
 }
 
-func NewSQLUsers(db *sql.DB) Users {
-	return &SQLUsers{db}
+func NewSQLUsers(ds *storage.SqliteDatastore) Users {
+	return &SQLUsers{ds}
 }
 
 func (us *SQLUsers) Register(email, password string) (int, error) {
@@ -30,17 +30,12 @@ func (us *SQLUsers) Register(email, password string) (int, error) {
 		return 0, fmt.Errorf("Register: validate email: %w", ErrInvalidValue)
 	}
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return 0, fmt.Errorf("Register: %w", err)
-	}
-
-	q, args, err := tmpl.Compile(stmt, User{Email: email, Password: password})
+	q, args, err := us.CompileStatement(stmt, User{Email: email, Password: password})
 	if err != nil {
 		return 0, fmt.Errorf("Register: compile insert statement: %w", err)
 	}
 
-	res, err := us.db.Exec(q, args...)
+	res, err := us.Exec(q, args...)
 	if err != nil {
 		return 0, fmt.Errorf("Register: execute insert: %w", err)
 	}
@@ -55,4 +50,8 @@ func (us *SQLUsers) Register(email, password string) (int, error) {
 	}
 
 	return int(id), nil
+}
+
+func (us *SQLUsers) UserWorkouts(userID int) ([]workout.Workout, error) {
+	return []workout.Workout{}, nil
 }

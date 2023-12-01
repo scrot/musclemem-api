@@ -4,14 +4,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/scrot/musclemem-api/internal"
+	"github.com/scrot/musclemem-api/internal/storage"
 	"github.com/scrot/musclemem-api/internal/user"
 )
 
 func TestRegisterUser(t *testing.T) {
 	t.Parallel()
 
-	us := internal.NewMockSqliteDatastore(t)
+	mock := storage.NewMockSqliteDatastore(t)
+	us := user.NewSQLUsers(mock.SqliteDatastore)
 
 	cs := []struct {
 		name          string
@@ -30,7 +31,7 @@ func TestRegisterUser(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			id, err := us.Users.Register(c.email, c.password)
+			id, err := us.Register(c.email, c.password)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}

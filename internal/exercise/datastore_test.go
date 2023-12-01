@@ -7,29 +7,21 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/scrot/musclemem-api/internal"
 	"github.com/scrot/musclemem-api/internal/exercise"
-	"github.com/scrot/musclemem-api/internal/user"
-	"github.com/scrot/musclemem-api/internal/workout"
+	"github.com/scrot/musclemem-api/internal/storage"
 )
 
 func TestRetreiveExerciseWithID(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	mock.WithExercise(t, 1, 1, "e1", 100, 10, 0, 2)
+	mock.WithExercise(t, 2, 1, "e2", 100, 10, 1, 0)
+	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
 
-	xs.WithUser(t, user.User{ID: 1})
-
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-
-	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "Interval", Weight: 100.0, Repetitions: 8}
-	e2 := exercise.Exercise{ID: 2, Workout: 1, Name: "Interval", Weight: 80.0, Repetitions: 10}
-
-	e1.NextID = e2.ID
-	e2.PreviousID = e1.ID
-
-	xs.WithExercise(t, e1)
-	xs.WithExercise(t, e2)
+	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "e1", Weight: 100.0, Repetitions: 10, PreviousID: 0, NextID: 2}
 
 	cs := []struct {
 		name        string
@@ -45,7 +37,7 @@ func TestRetreiveExerciseWithID(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			x, err := xs.Exercises.WithID(c.exerciseID)
+			x, err := xs.WithID(c.exerciseID)
 			if !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v', but got '%v'", c.expectedErr, err)
 			}
@@ -60,17 +52,16 @@ func TestRetreiveExerciseWithID(t *testing.T) {
 func TestStoringNewExercise(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
 
-	xs.WithUser(t, user.User{ID: 1})
-
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-
-	e1 := exercise.Exercise{Workout: 1, Name: "First", Weight: 80.0, Repetitions: 10}
-	e2 := exercise.Exercise{Workout: 1, Name: "Second", Weight: 80.0, Repetitions: 10}
-	e3 := exercise.Exercise{Workout: 1, Name: "Third", Weight: 80.0, Repetitions: 10}
-	em := exercise.Exercise{Workout: 1, Name: "Missing"}
-	eiw := exercise.Exercise{Workout: 2, Name: "Invalid Workout", Weight: 80.0, Repetitions: 10}
+	e1 := exercise.Exercise{Workout: 1, Name: "e1", Weight: 80.0, Repetitions: 10}
+	e2 := exercise.Exercise{Workout: 1, Name: "e2", Weight: 80.0, Repetitions: 10}
+	e3 := exercise.Exercise{Workout: 1, Name: "e3", Weight: 80.0, Repetitions: 10}
+	em := exercise.Exercise{Workout: 1, Name: "em"}
+	eiw := exercise.Exercise{Workout: 2, Name: "eiw", Weight: 80.0, Repetitions: 10}
 
 	r0 := map[int][]int{}
 	r1 := map[int][]int{}
@@ -93,7 +84,7 @@ func TestStoringNewExercise(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			id, err := xs.Exercises.New(c.exercise.Workout,
+			id, err := xs.New(c.exercise.Workout,
 				c.exercise.Name, c.exercise.Weight, c.exercise.Repetitions)
 
 			if !errors.Is(err, c.expectedErr) {
@@ -107,7 +98,7 @@ func TestStoringNewExercise(t *testing.T) {
 
 			// compare all workout exercises references
 			for k, v := range c.expectedRefs {
-				e, err := xs.Exercises.WithID(k)
+				e, err := xs.WithID(k)
 				if err != nil {
 					t.Errorf("expected no error but got '%v'", err)
 				}
@@ -129,10 +120,11 @@ func TestStoringNewExercise(t *testing.T) {
 func TestChangingExerciseName(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
-	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
+	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
 
 	cs := []struct {
 		name         string
@@ -149,7 +141,7 @@ func TestChangingExerciseName(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.Exercises.ChangeName(c.exerciseID, c.exerciseName); !errors.Is(err, c.expectedErr) {
+			if err := xs.ChangeName(c.exerciseID, c.exerciseName); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
@@ -165,10 +157,11 @@ func TestChangingExerciseName(t *testing.T) {
 func TestUpdatingWeight(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
-	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
+	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
 
 	cs := []struct {
 		name           string
@@ -185,12 +178,12 @@ func TestUpdatingWeight(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.Exercises.UpdateWeight(c.exerciseID, c.exerciseWeight); !errors.Is(err, c.expectedErr) {
+			if err := xs.UpdateWeight(c.exerciseID, c.exerciseWeight); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
 			var weight float64
-			xs.DB.QueryRow("SELECT weight FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&weight)
+			mock.DB.QueryRow("SELECT weight FROM exercises WHERE exercise_id = $1", c.exerciseID).Scan(&weight)
 			if weight != c.expected {
 				t.Errorf("expected weight '%.0f' but got '%.0f'", c.expected, weight)
 			}
@@ -201,10 +194,11 @@ func TestUpdatingWeight(t *testing.T) {
 func TestUpdateRepetitions(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
-	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
+	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
 
 	cs := []struct {
 		name                string
@@ -221,7 +215,7 @@ func TestUpdateRepetitions(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.Exercises.UpdateRepetitions(c.exerciseID, c.exerciseRepetitions); !errors.Is(err, c.expectedErr) {
+			if err := xs.UpdateRepetitions(c.exerciseID, c.exerciseRepetitions); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected error '%v' but got '%v'", c.expectedErr, err)
 			}
 
@@ -237,10 +231,11 @@ func TestUpdateRepetitions(t *testing.T) {
 func TestDeletingExercise(t *testing.T) {
 	t.Parallel()
 
-	xs := internal.NewMockSqliteDatastore(t)
-	xs.WithUser(t, user.User{ID: 1})
-	xs.WithWorkout(t, workout.Workout{ID: 1, Owner: 1})
-	xs.WithExercise(t, exercise.Exercise{ID: 1, Workout: 1})
+	mock := storage.NewMockSqliteDatastore(t)
+	mock.WithUser(t, 1, "", "")
+	mock.WithWorkout(t, 1, 1, "")
+	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
+	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
 
 	cs := []struct {
 		name           string
@@ -256,7 +251,7 @@ func TestDeletingExercise(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {
-			if err := xs.Exercises.Delete(c.input); !errors.Is(err, c.expectedErr) {
+			if err := xs.Delete(c.input); !errors.Is(err, c.expectedErr) {
 				t.Errorf("expected %q but got %q", c.expectedErr, err)
 			}
 

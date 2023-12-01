@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/scrot/musclemem-api/internal/exercise"
+	"github.com/scrot/musclemem-api/internal/storage"
 )
 
 type (
@@ -24,8 +25,8 @@ type (
 )
 
 func NewServer(l *slog.Logger, listenAddr string) (*Server, error) {
-	dbConfig := DefaultSqliteConfig
-	db, err := NewSqliteDatastore(dbConfig)
+	dbConfig := storage.DefaultSqliteConfig
+	db, err := storage.NewSqliteDatastore(dbConfig)
 	if err != nil {
 		return nil, fmt.Errorf("NewServer: new SQL database: %w", err)
 	}
