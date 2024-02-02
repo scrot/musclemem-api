@@ -1,29 +1,35 @@
 # syntax=docker/dockerfile:1
-FROM --platform=arm64 golang:latest AS build
+# https://docs.docker.com/language/golang/build-images/
+# https://snyk.io/blog/containerizing-go-applications-with-docker/
 
-WORKDIR /src/
-
-COPY . .
-
-RUN go mod download
-RUN go mod verify
+# Builder image
+FROM golang:1.22rc2-alpine3.19 AS builder
 
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=arm64
 
-RUN go build -o /out/mm-api ./cmd/api
+RUN addgroup --system nonroot && \ 
+  adduser --system nonroot --ingroup nonroot
 
-FROM --platform=arm64 gcr.io/distroless/static-debian11
+WORKDIR /app
 
+COPY . ./
+RUN go mod download &&\
+  go mod verify &&\
+  go build -o=/app/musclemem-api ./cmd/server
+
+# Production image
+FROM scratch
 LABEL maintainer="Roy de Wildt"
 
-COPY --from=build /out/mm-api .
+COPY --from=builder /app/musclemem-api /
+COPY --from=builder /app/musclemem.sqlite /
+COPY --from=builder /etc/passwd /etc/passwd
 
-USER nonroot:nonroot
+USER nonroot
 
-ENV PORT=80
+ENV PORT=8080
+EXPOSE 8080
 
-EXPOSE 80
-
-ENTRYPOINT [ "./mm-api" ]
+CMD ["/musclemem-api"]

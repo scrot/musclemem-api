@@ -6,6 +6,8 @@ import (
 
 	"github.com/scrot/musclemem-api/internal/storage"
 	"github.com/scrot/musclemem-api/internal/workout"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 type SQLUsers struct {
@@ -37,6 +39,12 @@ func (us *SQLUsers) Register(email, password string) (int, error) {
 
 	res, err := us.Exec(q, args...)
 	if err != nil {
+		if liteErr, ok := err.(*sqlite.Error); ok {
+			code := liteErr.Code()
+			if code == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
+				return 0, ErrUserExists
+			}
+		}
 		return 0, fmt.Errorf("Register: execute insert: %w", err)
 	}
 

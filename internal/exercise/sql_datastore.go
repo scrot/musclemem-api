@@ -80,7 +80,7 @@ func (xs *SQLExercises) New(workout int, name string, weight float64, repetition
 	)
 
 	if !xs.workoutExists(workout) {
-		return 0, fmt.Errorf("New: workoutExists: %w", ErrNotFound)
+		return 0, fmt.Errorf("New: workout %d: %w", workout, ErrNotFound)
 	}
 
 	if name == "" || weight <= 0 || repetitions <= 0 {

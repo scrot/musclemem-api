@@ -70,6 +70,7 @@ func (s *Service) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleNewExercise creates a new exercise given a workout
 func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 	s.logger.Debug("new create new exercise request")
 
@@ -79,13 +80,13 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.Debug("encoded body", "payload", buf.String())
-
 	var e Exercise
 	if err := json.Unmarshal(buf.Bytes(), &e); err != nil {
 		s.writeInternalError(w, err)
 		return
 	}
+
+	s.logger.Debug("decoded request body", "payload", e)
 
 	id, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
 	if err != nil {
@@ -99,7 +100,7 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", jsonapi.MediaType)
+	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(idJSON); err != nil {
 		s.writeInternalError(w, err)
 		return
@@ -107,7 +108,6 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) writeInternalError(w http.ResponseWriter, err error) {
-	msg := fmt.Errorf("exercise handler error: %w", err).Error()
-	s.logger.Error(msg)
-	http.Error(w, msg, http.StatusInternalServerError)
+	s.logger.Error(err.Error())
+	http.Error(w, "whoops", http.StatusInternalServerError)
 }

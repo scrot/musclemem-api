@@ -12,7 +12,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // Configuration for SqliteDatastore
@@ -24,7 +24,7 @@ type SqliteDatastoreConfig struct {
 }
 
 var DefaultSqliteConfig = SqliteDatastoreConfig{
-	DatabaseURL:        "file://./musclemem.db",
+	DatabaseURL:        "file://./musclemem.sqlite",
 	MigrationURL:       "file://./migrations/",
 	Overwrite:          false,
 	ForeignKeyEnforced: true,
@@ -49,6 +49,7 @@ func NewSqliteDatastore(config SqliteDatastoreConfig) (*SqliteDatastore, error) 
 	}
 
 	dbDNS := fmt.Sprintf("file:%s?_foreign_keys=%t", path, config.ForeignKeyEnforced)
+	// dbDNS := "file://.musclemem.sqlite?_pragma=foreign_keys(1)&_time_format=sqlite"
 	db, err := sql.Open("sqlite3", dbDNS)
 	if err != nil {
 		return nil, err

@@ -11,14 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/scrot/musclemem-api/internal/storage"
+	"github.com/scrot/musclemem-api/internal/user"
+	"github.com/scrot/musclemem-api/internal/workout"
 )
 
 type (
 	Server struct {
 		logger     *slog.Logger
+		users      user.Service
+		workouts   workout.Service
 		exercises  exercise.Service
 		listenAddr string
 	}
@@ -31,11 +34,19 @@ func NewServer(l *slog.Logger, listenAddr string) (*Server, error) {
 		return nil, fmt.Errorf("NewServer: new SQL database: %w", err)
 	}
 
+	us := user.NewSQLUsers(db)
+	userSvc := user.NewService(l, us)
+
+	ws := workout.NewSQLWorkouts(db)
+	workoutSvc := workout.NewService(l, ws)
+
 	xs := exercise.NewSQLExercises(db)
 	exerciseSvc := exercise.NewService(l, xs)
 
 	s := Server{
 		logger:     l,
+		users:      *userSvc,
+		workouts:   *workoutSvc,
 		exercises:  *exerciseSvc,
 		listenAddr: listenAddr,
 	}
@@ -44,10 +55,14 @@ func NewServer(l *slog.Logger, listenAddr string) (*Server, error) {
 }
 
 func (s *Server) Routes() http.Handler {
-	router := chi.NewRouter()
+	router := http.NewServeMux()
 
-	router.MethodFunc(http.MethodGet, "/exercises/{exerciseID}", s.exercises.HandleSingleExercise)
-	router.MethodFunc(http.MethodPost, "/exercises/", s.exercises.HandleNewExercise)
+	router.HandleFunc("POST /users", s.users.HandleNewUser)
+
+	router.HandleFunc("POST /workouts", s.workouts.HandleNewWorkout)
+
+	router.HandleFunc("GET /exercises/{exerciseID}", s.exercises.HandleSingleExercise)
+	router.HandleFunc("POST /exercises", s.exercises.HandleNewExercise)
 
 	return router
 }

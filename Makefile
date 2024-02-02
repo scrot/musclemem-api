@@ -74,9 +74,9 @@ run/server: build/server
 	@${OUTPUT_PATH}/${SERVER_BINARY}
 
 ## run/live: run the application with reloading on file changes
-.PHONY: run/live
-run/live:
-	@go run github.com/cosmtrek/air@lastest \
+.PHONY: live/server
+live/server:
+	@go run github.com/cosmtrek/air@latest \
 		--build.cmd "make build/server" --build.bin "${OUTPUT_PATH}/${SERVER_BINARY}" --build.delay "100" \
 		--build.exclude_dir "" \
 		--build.include_ext "go, sql" \

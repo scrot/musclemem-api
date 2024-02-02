@@ -15,6 +15,7 @@ type Users interface {
 var (
 	ErrInvalidValue  = errors.New("invalid value")
 	ErrMissingFields = errors.New("missing fields")
+	ErrUserExists    = errors.New("user already exists")
 )
 
 // Registerer allow for new users to be created
