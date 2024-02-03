@@ -10,6 +10,7 @@ import (
 // application. Password is the encrypted password.
 type User struct {
 	ID       int
+	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }

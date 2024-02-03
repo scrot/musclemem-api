@@ -28,8 +28,8 @@ var logoutCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		email = ""
-		viper.Set("user", email)
+		username = ""
+		viper.Set("user", username)
 		if err := viper.WriteConfig(); err != nil {
 			fmt.Printf("updating configuration file: %s\n", err)
 			os.Exit(1)

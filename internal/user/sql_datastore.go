@@ -18,13 +18,13 @@ func NewSQLUsers(ds *storage.SqliteDatastore) Users {
 	return &SQLUsers{ds}
 }
 
-func (us *SQLUsers) Register(email, password string) (int, error) {
+func (us *SQLUsers) Register(username, email, password string) (int, error) {
 	const stmt = `
-  INSERT INTO users (email, password)
-  VALUES ({{ .Email }}, {{ .Password }})
+  INSERT INTO users (username, email, password)
+  VALUES ({{ .Username}}, {{ .Email }}, {{ .Password }})
   `
 
-	if email == "" || password == "" {
+	if username == "" || email == "" || password == "" {
 		return 0, fmt.Errorf("Register: %w", ErrMissingFields)
 	}
 
@@ -32,7 +32,7 @@ func (us *SQLUsers) Register(email, password string) (int, error) {
 		return 0, fmt.Errorf("Register: validate email: %w", ErrInvalidValue)
 	}
 
-	q, args, err := us.CompileStatement(stmt, User{Email: email, Password: password})
+	q, args, err := us.CompileStatement(stmt, User{Username: username, Email: email, Password: password})
 	if err != nil {
 		return 0, fmt.Errorf("Register: compile insert statement: %w", err)
 	}
@@ -60,6 +60,35 @@ func (us *SQLUsers) Register(email, password string) (int, error) {
 	return int(id), nil
 }
 
-func (us *SQLUsers) UserWorkouts(userID int) ([]workout.Workout, error) {
-	return []workout.Workout{}, nil
+func (us *SQLUsers) UserWorkouts(username string) ([]workout.Workout, error) {
+	const stmt = `
+  SELECT *
+  FROM workouts
+  WHERE owner IN (SELECT user_id
+    FROM users
+    WHERE username = {{.}})
+  `
+
+	q, args, err := us.CompileStatement(stmt, username)
+	if err != nil {
+		return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
+	}
+
+	rows, err := us.Query(q, args...)
+	if err != nil {
+		return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
+	}
+
+	// TODO: fetch exercises as well for each workout (as option)
+	ws := []workout.Workout{}
+	for rows.Next() {
+		var w workout.Workout
+		err := rows.Scan(&w.ID, &w.Owner, &w.Name)
+		if err != nil {
+			return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
+		}
+		ws = append(ws, w)
+	}
+
+	return ws, nil
 }

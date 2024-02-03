@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	loginCmd.Flags().StringVarP(&email, "user", "u", "", "email address of user")
+	loginCmd.Flags().StringVarP(&username, "user", "u", "", "email address of user")
 	loginCmd.MarkFlagRequired("user")
 	loginCmd.Flags().StringVarP(&password, "password", "p", "", "password of user")
 	loginCmd.MarkFlagRequired("password")
@@ -19,7 +19,7 @@ func init() {
 }
 
 var (
-	email    string
+	username string
 	password string
 )
 
@@ -35,12 +35,12 @@ var loginCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := keyring.Set(appname, email, password); err != nil {
+		if err := keyring.Set(appname, username, password); err != nil {
 			fmt.Printf("storing credentials in keyring: %s", err)
 			os.Exit(1)
 		}
 
-		viper.Set("user", email)
+		viper.Set("user", username)
 		if err := viper.WriteConfig(); err != nil {
 			fmt.Printf("updating configuration file: %s", err)
 			os.Exit(1)

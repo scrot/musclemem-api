@@ -58,6 +58,7 @@ func (s *Server) Routes() http.Handler {
 	router := http.NewServeMux()
 
 	router.HandleFunc("POST /users", s.users.HandleNewUser)
+	router.HandleFunc("GET /users/{username}/workouts", s.users.HandleWorkouts)
 
 	router.HandleFunc("POST /workouts", s.workouts.HandleNewWorkout)
 

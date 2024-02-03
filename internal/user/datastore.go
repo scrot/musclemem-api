@@ -23,11 +23,11 @@ type Registerer interface {
 	// Register is responsible for validating the email and
 	// encrypting the password before storing. A new userID will
 	// be returned on success otherwise an error is thrown
-	Register(email, password string) (int, error)
+	Register(username, email, password string) (int, error)
 }
 
 // Retreiver implementations can query data
 type Retreiver interface {
 	// UserWorkouts returns all workouts that belong to the user
-	UserWorkouts(userID int) ([]workout.Workout, error)
+	UserWorkouts(username string) ([]workout.Workout, error)
 }
