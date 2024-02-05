@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	addCmd.PersistentFlags().StringVarP(&filepath, "file", "f", "", "path to json file (required)")
+	addCmd.PersistentFlags().StringVarP(&filePath, "file", "f", "", "path to json file (required)")
 	addCmd.MarkPersistentFlagRequired("file")
 
 	addCmd.AddCommand(addWorkoutCmd)
@@ -17,15 +17,14 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 }
 
-var (
-	filepath string
-	addCmd   = &cobra.Command{
-		Use:   "add",
-		Short: "Add new workouts or exercises",
-		Long: `Allows the creation of new user workouts
+var filePath string
+
+var addCmd = &cobra.Command{
+	Use:   "add",
+	Short: "Add new workouts or exercises",
+	Long: `Allows the creation of new user workouts
   and new workout exercises`,
-	}
-)
+}
 
 var addWorkoutCmd = &cobra.Command{
 	Use:     "workout",
@@ -34,7 +33,7 @@ var addWorkoutCmd = &cobra.Command{
 	Long:    `Add a new workout to the currently signed in user`,
 	Args:    cobra.NoArgs,
 	Run: func(_ *cobra.Command, _ []string) {
-		file, err := os.Open(filepath)
+		file, err := os.Open(filePath)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -55,7 +54,7 @@ var addExerciseCmd = &cobra.Command{
 	Long:    `Add a new exercise to the workout for the signed in user`,
 	Args:    cobra.NoArgs,
 	Run: func(_ *cobra.Command, _ []string) {
-		file, err := os.Open(filepath)
+		file, err := os.Open(filePath)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

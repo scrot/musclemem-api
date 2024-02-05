@@ -71,6 +71,8 @@ func (s *Service) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleNewExercise creates a new exercise given a workout
+// to batch add multiple exercises, use a json array in the request body
+// the exercise(s) are added add the end of the workout by default
 func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 	s.logger.Debug("new create new exercise request")
 
@@ -80,29 +82,44 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var e Exercise
-	if err := json.Unmarshal(buf.Bytes(), &e); err != nil {
-		s.writeInternalError(w, err)
+	payload := bytes.TrimLeft(buf.Bytes(), "\t\r\n")
+	if len(payload) <= 0 {
+		s.writeInternalError(w, errors.New("no data in the request body"))
 		return
 	}
 
-	s.logger.Debug("decoded request body", "payload", e)
+	switch payload[0] {
+	case '[':
+		var es []Exercise
+		if err := json.Unmarshal(payload, &es); err != nil {
+			s.writeInternalError(w, err)
+			return
+		}
 
-	id, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
-	if err != nil {
-		s.writeInternalError(w, err)
-		return
-	}
+		s.logger.Debug("decoded exercises in body", "count", len(es))
 
-	idJSON, err := json.Marshal(id)
-	if err != nil {
-		s.writeInternalError(w, err)
-		return
-	}
+		for _, e := range es {
+			_, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("error adding exercise: %s", err), "exercise", e.Name)
+			}
+		}
+	case '{':
+		var e Exercise
+		if err := json.Unmarshal(payload, &e); err != nil {
+			s.writeInternalError(w, err)
+			return
+		}
 
-	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(idJSON); err != nil {
-		s.writeInternalError(w, err)
+		s.logger.Debug("decoded exercise request body", "payload", e)
+
+		_, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
+		if err != nil {
+			s.writeInternalError(w, err)
+			return
+		}
+	default:
+		s.writeInternalError(w, errors.New("invalid json, first token not { or ["))
 		return
 	}
 }

@@ -1,0 +1,23 @@
+[
+  {
+    "owner": 1,
+    "workout": 1,
+    "name": "Dumbell Curls",
+    "weight": 20.5,
+    "repetitions": 15
+  },
+  {
+    "owner": 1,
+    "workout": 1,
+    "name": "Benchpress",
+    "weight": 100.0,
+    "repetitions": 10
+  },
+  {
+    "owner": 1,
+    "workout": 1,
+    "name": "Deadlifts",
+    "weight": 165.0,
+    "repetitions": 5
+  }
+]

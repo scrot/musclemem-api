@@ -79,7 +79,6 @@ func (us *SQLUsers) UserWorkouts(username string) ([]workout.Workout, error) {
 		return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
 	}
 
-	// TODO: fetch exercises as well for each workout (as option)
 	ws := []workout.Workout{}
 	for rows.Next() {
 		var w workout.Workout
