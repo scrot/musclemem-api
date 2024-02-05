@@ -131,7 +131,7 @@ func (ws *SQLWorkouts) WorkoutExercises(workoutID int) ([]exercise.Exercise, err
 		xs = append(xs, x)
 	}
 
-	return xs, nil
+	return exercise.Sort(xs), nil
 }
 
 func (ws *SQLWorkouts) ChangeName(id int, name string) error {

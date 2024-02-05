@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 func postJSON(baseurl string, endpoint string, r io.Reader) (*http.Response, error) {
@@ -41,7 +44,6 @@ func getJSON(baseurl string, endpoint string) ([]byte, error) {
 	}
 
 	url, err := url.JoinPath(baseurl, endpoint)
-	fmt.Println(url)
 	if err != nil {
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
@@ -58,4 +60,18 @@ func getJSON(baseurl string, endpoint string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func newTable() *tablewriter.Table {
+	t := tablewriter.NewWriter(os.Stdout)
+	t.SetBorder(false)
+	t.SetHeaderLine(false)
+	t.SetNoWhiteSpace(true)
+	t.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	t.SetAlignment(tablewriter.ALIGN_LEFT)
+	t.SetRowSeparator("")
+	t.SetColumnSeparator("")
+	t.SetCenterSeparator("")
+	t.SetTablePadding("  ")
+	return t
 }

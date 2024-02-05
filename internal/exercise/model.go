@@ -43,3 +43,23 @@ func (e Exercise) Previous(r Retreiver) Exercise {
 	}
 	return x
 }
+
+// Sort orders a list of exercises based on their order in
+// the linked list, returning a list of exercises that are
+// in the right sequence
+func Sort(xs []Exercise) []Exercise {
+	var (
+		prev   int
+		sorted []Exercise
+	)
+
+	for _, x := range xs {
+		if x.PreviousID == prev {
+			sorted = append(sorted, x)
+			prev = x.ID
+			continue
+		}
+	}
+
+	return sorted
+}
