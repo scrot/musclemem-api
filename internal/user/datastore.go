@@ -2,32 +2,29 @@ package user
 
 import (
 	"errors"
-
-	"github.com/scrot/musclemem-api/internal/workout"
 )
 
 // Users represents the user repository
 type Users interface {
-	Registerer
+	Storer
 	Retreiver
 }
 
-var (
-	ErrInvalidValue  = errors.New("invalid value")
-	ErrMissingFields = errors.New("missing fields")
-	ErrUserExists    = errors.New("user already exists")
-)
+var ErrInvalidFields = errors.New("contains invalid fields")
 
-// Registerer allow for new users to be created
-type Registerer interface {
-	// Register is responsible for validating the email and
+// Storer allow for new users to be created
+type Storer interface {
+	// New is responsible for validating the email and
 	// encrypting the password before storing. A new userID will
 	// be returned on success otherwise an error is thrown
-	Register(username, email, password string) (int, error)
+	New(username, email, password string) (User, error)
 }
 
 // Retreiver implementations can query data
 type Retreiver interface {
-	// UserWorkouts returns all workouts that belong to the user
-	UserWorkouts(username string) ([]workout.Workout, error)
+	// ByUsername returns the User given a username
+	// it returns an ErrNotFound if user does not exists
+	// includeWorkouts and includeExercises include
+	// the user's workouts and workout exercises as well
+	ByUsername(username string) (User, error)
 }

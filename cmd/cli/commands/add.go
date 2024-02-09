@@ -2,9 +2,11 @@ package commands
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() {
@@ -40,20 +42,31 @@ var addWorkoutCmd = &cobra.Command{
 		}
 		defer file.Close()
 
-		if _, err := postJSON(baseurl, "/workouts", file); err != nil {
+		endpoint := fmt.Sprintf("/users/%s/workouts", viper.GetString("user"))
+		resp, err := postJSON(baseurl, endpoint, file)
+		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("api error: %s", resp.Status)
 		}
 	},
 }
 
 var addExerciseCmd = &cobra.Command{
-	Use:     "exercise",
+	Use:     "exercise [workout index]",
 	Aliases: []string{"ex"},
 	Short:   "Add new exercise",
 	Long:    `Add a new exercise to the workout for the signed in user`,
-	Args:    cobra.NoArgs,
-	Run: func(_ *cobra.Command, _ []string) {
+	Args:    cobra.ExactArgs(1),
+	Run: func(_ *cobra.Command, args []string) {
+		var (
+			user    = viper.GetString("user")
+			workout = args[0]
+		)
+
 		file, err := os.Open(filePath)
 		if err != nil {
 			fmt.Println(err)
@@ -61,7 +74,8 @@ var addExerciseCmd = &cobra.Command{
 		}
 		defer file.Close()
 
-		if _, err := postJSON(baseurl, "/exercises", file); err != nil {
+		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
+		if _, err := postJSON(baseurl, endpoint, file); err != nil {
 			fmt.Println(err)
 		}
 	},

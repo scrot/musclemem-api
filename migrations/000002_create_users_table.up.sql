@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS users (
-  user_id INTEGER PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE, 
+  username TEXT NOT NULL, 
   email TEXT NOT NULL UNIQUE, 
-  password TEXT NOT NULL
+  password TEXT NOT NULL,
+  PRIMARY KEY (username)
 );

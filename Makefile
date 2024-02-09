@@ -31,6 +31,11 @@ no-dirty:
 # QUALITY CONTROL
 # ==================================================================================== #
 
+## kill: kills process on running port :8080
+.PHONY: kill
+kill:
+	lsof -t -i:8080 | xargs -r kill
+
 ## tidy: format code and tidy modfile
 .PHONY: tidy
 tidy:
@@ -77,7 +82,9 @@ run/server: build/server
 .PHONY: live/server
 live/server:
 	@go run github.com/cosmtrek/air@latest \
-		--build.cmd "make build/server" --build.bin "${OUTPUT_PATH}/${SERVER_BINARY}" --build.delay "100" \
+		--build.cmd "make kill && make build/server" \
+		--build.bin "${OUTPUT_PATH}/${SERVER_BINARY}" \
+		--build.delay "100" \
 		--build.exclude_dir "" \
 		--build.include_ext "go, sql" \
 		--misc.clean_on_exit "true"

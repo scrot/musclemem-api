@@ -2,12 +2,8 @@ package user
 
 import (
 	"fmt"
-	"net/mail"
 
 	"github.com/scrot/musclemem-api/internal/storage"
-	"github.com/scrot/musclemem-api/internal/workout"
-	"modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
 )
 
 type SQLUsers struct {
@@ -18,76 +14,50 @@ func NewSQLUsers(ds *storage.SqliteDatastore) Users {
 	return &SQLUsers{ds}
 }
 
-func (us *SQLUsers) Register(username, email, password string) (int, error) {
+func (us *SQLUsers) New(username, email, password string) (User, error) {
 	const stmt = `
   INSERT INTO users (username, email, password)
   VALUES ({{ .Username}}, {{ .Email }}, {{ .Password }})
   `
 
 	if username == "" || email == "" || password == "" {
-		return 0, fmt.Errorf("Register: %w", ErrMissingFields)
+		return User{}, fmt.Errorf("New: %w", ErrInvalidFields)
 	}
 
-	if _, err := mail.ParseAddress(email); err != nil {
-		return 0, fmt.Errorf("Register: validate email: %w", ErrInvalidValue)
-	}
-
-	q, args, err := us.CompileStatement(stmt, User{Username: username, Email: email, Password: password})
+	data := User{Username: username, Email: email, Password: password}
+	q, args, err := us.CompileStatement(stmt, data)
 	if err != nil {
-		return 0, fmt.Errorf("Register: compile insert statement: %w", err)
+		return User{}, fmt.Errorf("New: compile: %w", err)
 	}
 
-	res, err := us.Exec(q, args...)
+	if _, err := us.Exec(q, args...); err != nil {
+		return User{}, fmt.Errorf("New: execute: %w", err)
+	}
+
+	u, err := us.ByUsername(username)
 	if err != nil {
-		if liteErr, ok := err.(*sqlite.Error); ok {
-			code := liteErr.Code()
-			if code == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
-				return 0, ErrUserExists
-			}
-		}
-		return 0, fmt.Errorf("Register: execute insert: %w", err)
+		return User{}, fmt.Errorf("New: fetch %s: %w", username, err)
 	}
 
-	id, err := res.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("Register: new id: %w", err)
-	}
-
-	if id <= 0 {
-		return 0, fmt.Errorf("Register: invalid new id")
-	}
-
-	return int(id), nil
+	return u, nil
 }
 
-func (us *SQLUsers) UserWorkouts(username string) ([]workout.Workout, error) {
+func (us *SQLUsers) ByUsername(username string) (User, error) {
 	const stmt = `
-  SELECT *
-  FROM workouts
-  WHERE owner IN (SELECT user_id
-    FROM users
-    WHERE username = {{.}})
+  SELECT username, email, password
+  FROM users
+  WHERE username = {{ . }}
   `
 
 	q, args, err := us.CompileStatement(stmt, username)
 	if err != nil {
-		return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
+		return User{}, fmt.Errorf("ByUsername: compile: %w", err)
 	}
 
-	rows, err := us.Query(q, args...)
-	if err != nil {
-		return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
+	var u User
+	if err := us.QueryRow(q, args...).Scan(&u.Username, &u.Email, &u.Password); err != nil {
+		return User{}, fmt.Errorf("ByUsername: query: %w", err)
 	}
 
-	ws := []workout.Workout{}
-	for rows.Next() {
-		var w workout.Workout
-		err := rows.Scan(&w.ID, &w.Owner, &w.Name)
-		if err != nil {
-			return []workout.Workout{}, fmt.Errorf("UserWorkouts: %w", err)
-		}
-		ws = append(ws, w)
-	}
-
-	return ws, nil
+	return u, nil
 }

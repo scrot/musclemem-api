@@ -9,8 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/scrot/jsonapi"
+	"github.com/scrot/musclemem-api/internal/xhttp"
 )
 
 type Service struct {
@@ -18,6 +17,9 @@ type Service struct {
 	exercises Exercises
 }
 
+// NewService creates a new http/json service for handling exercises
+// It interacts with a storage controller implementing the Exercises
+// interface
 func NewService(l *slog.Logger, xs Exercises) *Service {
 	return &Service{
 		logger:    l.With("svc", "exercise"),
@@ -30,101 +32,220 @@ var ErrInvalidJSON = errors.New("invalid json")
 // HandleSingleExercise handles the request for a single exercise
 // returning the details of exercise as json given an exerciseID
 func (s *Service) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
-	idParam := chi.URLParam(r, "exerciseID")
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+		exercise = r.PathValue("exercise")
+	)
 
-	s.logger.Debug("new single exercise request", "id", idParam, "path", r.URL.Path)
+	l := s.logger.With("user", username, "workout", workout)
 
-	id, err := strconv.Atoi(idParam)
+	wi, err := strconv.Atoi(r.PathValue("workout"))
 	if err != nil {
-		msg := fmt.Sprintf("%d not a valid id: %s", id, err)
-		s.logger.Error(msg)
-		http.Error(w, msg, http.StatusBadRequest)
-	}
-
-	if id == 0 {
-		s.writeInternalError(w, err)
+		writeInternalError(l, w, err)
 		return
 	}
 
-	exercise, err := s.exercises.WithID(id)
+	ei, err := strconv.Atoi(exercise)
 	if err != nil {
-		s.writeInternalError(w, err)
+		writeInternalError(l, w, err)
 		return
 	}
 
-	payload, err := json.Marshal(&exercise)
+	e, err := s.exercises.ByID(username, wi, ei)
 	if err != nil {
-		s.writeInternalError(w, err)
+		writeInternalError(l, w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", jsonapi.MediaType)
+	payload, err := json.Marshal(&e)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
 
 	if _, err := w.Write(payload); err != nil {
-		msg := fmt.Errorf("exercise response error: %w", err).Error()
-		s.logger.Error(msg)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(l, w, err)
 		return
 	}
+}
+
+// HandleExercises retrieves all exercises of a user's workout
+func (s *Service) HandleExercises(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+	)
+
+	l := s.logger.With("user", username, "workout", workout)
+
+	wi, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	xs, err := s.exercises.ByWorkout(username, wi)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	l.Debug("fetching exercises", "count", len(xs))
+
+	xsJSON, err := json.Marshal(xs)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(xsJSON)
 }
 
 // HandleNewExercise creates a new exercise given a workout
 // to batch add multiple exercises, use a json array in the request body
 // the exercise(s) are added add the end of the workout by default
 func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
-	s.logger.Debug("new create new exercise request")
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+	)
 
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r.Body); err != nil {
-		s.writeInternalError(w, err)
+	l := s.logger.With("user", username, "workout", workout)
+
+	wid, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
 		return
 	}
 
-	payload := bytes.TrimLeft(buf.Bytes(), "\t\r\n")
-	if len(payload) <= 0 {
-		s.writeInternalError(w, errors.New("no data in the request body"))
+	js, typ, err := xhttp.RequestJSON(r)
+	if err != nil {
+		writeInternalError(l, w, err)
 		return
 	}
 
-	switch payload[0] {
-	case '[':
-		var es []Exercise
-		if err := json.Unmarshal(payload, &es); err != nil {
-			s.writeInternalError(w, err)
+	var responseBody []byte
+	switch typ {
+	case xhttp.TypeJSONObject:
+		var ex Exercise
+		if err := json.Unmarshal(js, &ex); err != nil {
+			writeInternalError(l, w, err)
 			return
 		}
 
-		s.logger.Debug("decoded exercises in body", "count", len(es))
-
-		for _, e := range es {
-			_, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("error adding exercise: %s", err), "exercise", e.Name)
-			}
-		}
-	case '{':
-		var e Exercise
-		if err := json.Unmarshal(payload, &e); err != nil {
-			s.writeInternalError(w, err)
-			return
-		}
-
-		s.logger.Debug("decoded exercise request body", "payload", e)
-
-		_, err := s.exercises.New(e.Workout, e.Name, e.Weight, e.Repetitions)
+		nex, err := s.exercises.New(username, wid, ex.Name, ex.Weight, ex.Repetitions)
 		if err != nil {
-			s.writeInternalError(w, err)
+			writeInternalError(l, w, err)
 			return
 		}
+
+		responseBody, err = json.Marshal(nex)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		l.Debug(fmt.Sprintf("exercise %s created", nex.Key()))
+	case xhttp.TypeJSONArray:
+		var xs []Exercise
+		if err := json.Unmarshal(js, &xs); err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		var nxs []Exercise
+		for _, ex := range xs {
+			nex, err := s.exercises.New(username, wid, ex.Name, ex.Weight, ex.Repetitions)
+			if err != nil {
+				writeInternalError(l, w, err)
+				return
+			}
+			nxs = append(nxs, nex)
+		}
+
+		var err error
+		responseBody, err = json.Marshal(nxs)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		l.Debug(fmt.Sprintf("%d exercises created", len(nxs)))
 	default:
-		s.writeInternalError(w, errors.New("invalid json, first token not { or ["))
+		writeInternalError(l, w, errors.New("invalid json in request body"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(responseBody); err != nil {
+		writeInternalError(l, w, err)
 		return
 	}
 }
 
-func (s *Service) writeInternalError(w http.ResponseWriter, err error) {
-	s.logger.Error(err.Error())
-	http.Error(w, "whoops", http.StatusInternalServerError)
+func (s *Service) createExercise(l *slog.Logger, w http.ResponseWriter, e Exercise) {
+}
+
+func (s *Service) HandleSwapExercises(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+		exercise = r.PathValue("exercise")
+	)
+
+	l := s.logger.With("user", username, "workout", workout, "exercise", exercise)
+
+	wi, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	ei1, err := strconv.Atoi(exercise)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	var buf bytes.Buffer
+	defer r.Body.Close()
+	if _, err := buf.ReadFrom(r.Body); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	val, ok := payload["with"]
+	if !ok {
+		writeInternalError(l, w, fmt.Errorf("require body parameters %q", "with"))
+		return
+	}
+
+	ei2, ok := val.(int)
+	if !ok {
+		writeInternalError(l, w, fmt.Errorf("body parameter should be a digit"))
+		return
+	}
+
+	l = l.With("with", ei2)
+
+	if err := s.exercises.Swap(username, wi, ei1, ei2); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+}
+
+func writeInternalError(l *slog.Logger, w http.ResponseWriter, err error) {
+	msg := fmt.Errorf("%w", err).Error()
+	l.Error(msg)
+	http.Error(w, msg, http.StatusInternalServerError)
 }

@@ -4,9 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 
-	"github.com/VauntDev/tqla"
-	"github.com/google/go-cmp/cmp"
 	"github.com/scrot/musclemem-api/internal/storage"
 )
 
@@ -20,37 +19,41 @@ func NewSQLExercises(db *storage.SqliteDatastore) *SQLExercises {
 
 // ExerciseByID returns an exercise from the database if exists
 // otherwise returns NotFound error
-func (xs *SQLExercises) WithID(id int) (Exercise, error) {
+func (xs *SQLExercises) ByID(owner string, workout int, exercise int) (Exercise, error) {
 	const (
 		stmt = `
-    SELECT exercise_id, workout, name, weight, repetitions, previous, next
+    SELECT owner, workout, exercise_index, name, weight, repetitions
     FROM exercises
-    WHERE exercise_id = {{ . }}
+    WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
     `
 	)
 
-	if id <= 0 {
-		return Exercise{}, ErrInvalidID
+	if owner == "" || workout <= 0 || exercise <= 0 {
+		return Exercise{}, ErrInvalidFields
 	}
 
-	q, args, err := xs.CompileStatement(stmt, id)
+	data := struct {
+		Owner    string
+		Workout  int
+		Exercise int
+	}{owner, workout, exercise}
+
+	q, args, err := xs.CompileStatement(stmt, data)
 	if err != nil {
-		return Exercise{}, fmt.Errorf("WithID: %w", err)
+		return Exercise{}, fmt.Errorf("WithID: compile: %w", err)
 	}
 
 	var e Exercise
-
 	if err := xs.QueryRow(q, args...).Scan(
-		&e.ID,
+		&e.Owner,
 		&e.Workout,
+		&e.Index,
 		&e.Name,
 		&e.Weight,
 		&e.Repetitions,
-		&e.PreviousID,
-		&e.NextID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Exercise{}, fmt.Errorf("WithID: %w", ErrNotFound)
+			return Exercise{}, nil
 		}
 		return Exercise{}, fmt.Errorf("WithID: %w", err)
 	}
@@ -58,335 +61,360 @@ func (xs *SQLExercises) WithID(id int) (Exercise, error) {
 	return e, nil
 }
 
-// StoreExercise stores the given exrcise in the sqlite database
-// If the id already exists it updates the existing record
-// ErrMissingFields is returned when fields are missing
-func (xs *SQLExercises) New(workout int, name string, weight float64, repetitions int) (int, error) {
+func (xs *SQLExercises) ByWorkout(owner string, workout int) ([]Exercise, error) {
 	const (
-		insertStmt = `
-    INSERT INTO exercises (workout, name, weight, repetitions, previous, next)
-    VALUES ({{.Workout}}, {{.Name}}, {{.Weight}}, {{.Repetitions}}, {{.PreviousID}}, {{.NextID}})
-    `
-		updatePreviousStmt = `
-    UPDATE exercises
-    SET previous = {{.PreviousID }}   
-    WHERE exercise_id = {{ .ID }}
-    `
-		updateNextStmt = `
-    UPDATE exercises
-    SET next = {{ .NextID }}
-    WHERE exercise_id = {{ .ID }}
+		selectStmt = `
+    SELECT owner, workout, exercise_index, name, weight, repetitions
+    FROM exercises
+    WHERE owner = {{ .Owner }} AND workout = {{ .Workout }}
     `
 	)
 
-	if !xs.workoutExists(workout) {
-		return 0, fmt.Errorf("New: workout %d: %w", workout, ErrNotFound)
+	if owner == "" || workout <= 0 {
+		return []Exercise{}, fmt.Errorf("ByWorkout: %w", ErrInvalidFields)
 	}
 
-	if name == "" || weight <= 0 || repetitions <= 0 {
-		return 0, fmt.Errorf("New: %w", ErrMissingFields)
-	}
+	data := struct {
+		Owner   string
+		Workout int
+	}{owner, workout}
 
-	// get last exercise in workout
-	tail, err := tail(xs, workout)
+	q, args, err := xs.CompileStatement(selectStmt, data)
 	if err != nil {
-		return 0, fmt.Errorf("New: %w", err)
+		return []Exercise{}, fmt.Errorf("ByWorkout: compile: %w", err)
 	}
 
-	// insert new exercise
-	tx, err := xs.Begin()
+	rs, err := xs.Query(q, args...)
 	if err != nil {
-		return 0, fmt.Errorf("New: begin transaction: %w", err)
+		return []Exercise{}, fmt.Errorf("ByWorkout: query: %w", err)
+	}
+
+	var es []Exercise
+	for rs.Next() {
+		var e Exercise
+
+		err := rs.Scan(
+			&e.Owner,
+			&e.Workout,
+			&e.Index,
+			&e.Name,
+			&e.Weight,
+			&e.Repetitions,
+		)
+		if err != nil {
+			return []Exercise{}, fmt.Errorf("ByWorkout: scan: %w", err)
+		}
+
+		es = append(es, e)
+	}
+
+	sort.Sort(ByIndex(es))
+
+	return es, nil
+}
+
+func (xs *SQLExercises) New(owner string, workout int, name string, weight float64, repetitions int) (Exercise, error) {
+	const stmt = `
+  INSERT INTO exercises (owner, workout, exercise_index, name, weight, repetitions)
+  VALUES ({{ .Owner }}, {{ .Workout }}, {{ .Index }}, {{ .Name }}, {{ .Weight }}, {{ .Repetitions }})
+  `
+
+	if owner == "" || workout <= 0 || name == "" || weight < 0 || repetitions < 0 {
+		return Exercise{}, fmt.Errorf("New: %w", ErrInvalidFields)
+	}
+
+	if !xs.workoutExists(owner, workout) {
+		return Exercise{}, fmt.Errorf("New: check workout %s/%d: %w", owner, workout, ErrNotFound)
+	}
+
+	last, err := xs.lastIndex(owner, workout)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("New: get last index: %w", err)
 	}
 
 	x := Exercise{
+		Owner:       owner,
 		Workout:     workout,
+		Index:       last + 1,
 		Name:        name,
 		Weight:      weight,
 		Repetitions: repetitions,
 	}
 
-	insert, args, err := xs.CompileStatement(insertStmt, x)
+	q, args, err := xs.CompileStatement(stmt, x)
 	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("New: compile insert statement: %w", err)
+		return Exercise{}, fmt.Errorf("New: compile: %w", err)
 	}
 
-	res, err := tx.Exec(insert, args...)
+	if _, err := xs.Exec(q, args...); err != nil {
+		return Exercise{}, fmt.Errorf("New: execute: %w", err)
+	}
+
+	ne, err := xs.ByID(owner, workout, last+1)
 	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("New: execute insert new: %w", err)
+		return Exercise{}, fmt.Errorf("New: get exercise %s/%d/%d: %w", owner, workout, last+1, err)
 	}
 
-	newID, err := res.LastInsertId()
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("New: last id: %w", err)
-	}
-
-	// update exercise references
-	if !cmp.Equal(tail, Exercise{}) {
-		newExPatch := struct {
-			ID         int
-			PreviousID int
-		}{
-			ID:         int(newID),
-			PreviousID: tail.ID,
-		}
-
-		patchNew, args, err := xs.CompileStatement(updatePreviousStmt, newExPatch)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("New: compile previous statement: %w", err)
-		}
-
-		_, err = tx.Exec(patchNew, args...)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("New: execute patch new exercise: %w", err)
-		}
-
-		oldExPatch := struct {
-			ID     int
-			NextID int
-		}{
-			ID:     tail.ID,
-			NextID: int(newID),
-		}
-
-		patchOld, args, err := xs.CompileStatement(updateNextStmt, oldExPatch)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("New: compile next statement: %w", err)
-		}
-
-		_, err = tx.Exec(patchOld, args...)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("New: execute patch last exercise: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("New: commit transaction: %w", err)
-	}
-
-	return int(newID), nil
+	return ne, nil
 }
 
-func (xs *SQLExercises) ChangeName(id int, name string) error {
-	const updateStmt = `
+func (xs *SQLExercises) ChangeName(owner string, workout int, exercise int, name string) (Exercise, error) {
+	const stmt = `
   UPDATE exercises
   SET name = {{ .Name }}
-  WHERE exercise_id = {{ .ID }}
+  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
   `
-	if id <= 0 {
-		return ErrInvalidID
-	}
-
-	if name == "" {
-		return ErrMissingFields
+	if owner == "" || workout <= 0 || exercise <= 0 || name == "" {
+		return Exercise{}, ErrInvalidFields
 	}
 
 	data := struct {
-		ID   int
-		Name string
-	}{id, name}
+		Owner    string
+		Workout  int
+		Exercise int
+		Name     string
+	}{owner, workout, exercise, name}
 
-	q, args, err := xs.CompileStatement(updateStmt, data)
+	q, args, err := xs.CompileStatement(stmt, data)
 	if err != nil {
-		return fmt.Errorf("ChangeName: %w", err)
+		return Exercise{}, fmt.Errorf("ChangeName: compile: %w", err)
 	}
 
 	_, err = xs.Exec(q, args...)
 	if err != nil {
-		return fmt.Errorf("ChangeName: %w", err)
+		return Exercise{}, fmt.Errorf("ChangeName: execute: %w", err)
 	}
 
-	return nil
+	e, err := xs.ByID(owner, workout, exercise)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("ChangeName: fetch exercise %s/%d/%d: %w", owner, workout, exercise, err)
+	}
+
+	return e, nil
 }
 
-func (xs *SQLExercises) UpdateWeight(id int, weight float64) error {
+func (xs *SQLExercises) UpdateWeight(owner string, workout int, exercise int, weight float64) (Exercise, error) {
 	const updateStmt = `
   UPDATE exercises
   SET weight = {{ .Weight }}
-  WHERE exercise_id = {{ .ID }}
+  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
   `
-	if id <= 0 {
-		return ErrInvalidID
-	}
-
-	if weight < 0 {
-		return ErrNegativeValue
+	if owner == "" || workout <= 0 || exercise <= 0 || weight < 0 {
+		return Exercise{}, ErrInvalidFields
 	}
 
 	data := struct {
-		ID     int
-		Weight float64
-	}{id, weight}
+		Owner    string
+		Workout  int
+		Exercise int
+		Weight   float64
+	}{owner, workout, exercise, weight}
 
 	q, args, err := xs.CompileStatement(updateStmt, data)
 	if err != nil {
-		return fmt.Errorf("UpdateWeights: %w", err)
+		return Exercise{}, fmt.Errorf("UpdateWeights: compile: %w", err)
 	}
 
 	_, err = xs.Exec(q, args...)
 	if err != nil {
-		return fmt.Errorf("UpdateWeights: %w", err)
+		return Exercise{}, fmt.Errorf("UpdateWeights: execute: %w", err)
 	}
 
-	return nil
+	e, err := xs.ByID(owner, workout, exercise)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("UpdateWeights: fetch exercise: %w", err)
+	}
+
+	return e, nil
 }
 
-func (xs *SQLExercises) UpdateRepetitions(id int, repetitions int) error {
+func (xs *SQLExercises) UpdateRepetitions(owner string, workout int, exercise int, repetitions int) (Exercise, error) {
 	const updateStmt = `
   UPDATE exercises
   SET repetitions = {{ .Repetitions }}
-  WHERE exercise_id = {{ .ID }}
+  WHERE owner = {{ .Owner }} workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
   `
-	if id <= 0 {
-		return ErrInvalidID
-	}
-
-	if repetitions < 0 {
-		return ErrNegativeValue
+	if owner == "" || workout <= 0 || exercise <= 0 || repetitions < 0 {
+		return Exercise{}, ErrInvalidFields
 	}
 
 	data := struct {
-		ID          int
+		Owner       string
+		Workout     int
+		Exercise    int
 		Repetitions int
-	}{id, repetitions}
+	}{owner, workout, exercise, repetitions}
 
 	q, args, err := xs.CompileStatement(updateStmt, data)
 	if err != nil {
-		return fmt.Errorf("UpdateRepetitions: %w", err)
+		return Exercise{}, fmt.Errorf("UpdateRepetitions: %w", err)
 	}
 
 	_, err = xs.Exec(q, args...)
 	if err != nil {
-		return fmt.Errorf("UpdateRepetitions: %w", err)
+		return Exercise{}, fmt.Errorf("UpdateRepetitions: %w", err)
 	}
 
-	return nil
+	e, err := xs.ByID(owner, workout, exercise)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("UpdateRepetitions: fetch exercise: %w", err)
+	}
+
+	return e, nil
 }
 
-func (ds *SQLExercises) Delete(id int) error {
-	deleteStmt := `
+func (xs *SQLExercises) Delete(owner string, workout int, exercise int) (Exercise, error) {
+	const stmt = `
   DELETE FROM exercises
-  WHERE exercise_id = {{.}}
+  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
   `
 
-	if id <= 0 {
-		return fmt.Errorf("Delete: %w", ErrInvalidID)
+	e, err := xs.ByID(owner, workout, exercise)
+	if err != nil {
+		return Exercise{}, fmt.Errorf("Delete: fetch exercise: %w", err)
 	}
 
-	tmpl, err := tqla.New()
-	if err != nil {
-		return fmt.Errorf("Delete: %w", err)
+	if owner == "" || workout <= 0 || exercise <= 0 {
+		return Exercise{}, fmt.Errorf("Delete: %w", ErrInvalidFields)
 	}
 
-	q, args, err := tmpl.Compile(deleteStmt, id)
+	data := struct{ Workout, Index int }{workout, exercise}
+	q, args, err := xs.CompileStatement(stmt, data)
 	if err != nil {
-		return fmt.Errorf("Delete: %w", err)
+		return Exercise{}, fmt.Errorf("Delete: compile: %w", err)
 	}
-	res, err := ds.Exec(q, args...)
+
+	res, err := xs.Exec(q, args...)
 	if err != nil {
-		return fmt.Errorf("Delete: %w", err)
+		return Exercise{}, fmt.Errorf("Delete: execute: %w", err)
 	}
+
 	c, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("Delete: %w", err)
+		return Exercise{}, fmt.Errorf("Delete: %w", err)
 	}
 
 	if c == 0 {
-		return fmt.Errorf("Delete: %w", ErrNotFound)
+		return Exercise{}, fmt.Errorf("Delete: %w", ErrNotFound)
 	}
+
+	return e, nil
+}
+
+func (xs *SQLExercises) Swap(owner string, workout int, e1 int, e2 int) error {
+	const stmt = `
+    UPDATE exercises
+    SET exercise_index = {{ .NewIndex }}
+    WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index {{ .Index }}
+  `
+
+	if owner == "" || workout <= 0 || e1 <= 0 || e2 <= 0 {
+		return fmt.Errorf("Swap: %w", ErrInvalidFields)
+	}
+
+	if _, err := xs.ByID(owner, workout, e1); err != nil {
+		return fmt.Errorf("Swap: check index %d: %w", e1, err)
+	}
+
+	if _, err := xs.ByID(owner, workout, e2); err != nil {
+		return fmt.Errorf("Swap: check index %d: %w", e2, err)
+	}
+
+	newE1 := struct {
+		Owner           string
+		Workout         int
+		Index, NewIndex int
+	}{owner, workout, e1, e2}
+
+	newE2 := struct {
+		Owner           string
+		Workout         int
+		Index, NewIndex int
+	}{owner, workout, e2, e1}
+
+	tx, err := xs.Begin()
+	if err != nil {
+		return fmt.Errorf("Swap: new transaction: %w", err)
+	}
+
+	q, args, err := xs.CompileStatement(stmt, newE1)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Swap: compile new exercise %d: %w", e1, err)
+	}
+
+	if _, err = tx.Exec(q, args...); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Swap: update exercise %d: %w", e1, err)
+	}
+
+	q, args, err = xs.CompileStatement(stmt, newE2)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Swap: compile new exercise %d: %w", e2, err)
+	}
+
+	if _, err = tx.Exec(q, args...); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Swap: update exercise %d: %w", e2, err)
+	}
+
+	tx.Commit()
 
 	return nil
 }
 
-// tail returns last exercise in linked list or empty exercise if
-// no exercises exists for that workout
-func tail(xs *SQLExercises, workout int) (Exercise, error) {
+// lastIndex returns the last exercise index of a workout
+// if the index is 0 and no error, then there are no exercises
+func (xs *SQLExercises) lastIndex(owner string, workout int) (int, error) {
+	// TODO: handle NULL value if no exercises found
 	const (
-		tailStmt = `
-    SELECT exercise_id   
+		stmt = `
+    SELECT MAX(exercise_index)
     FROM exercises
-    WHERE workout={{ . }} AND next=0
+    WHERE owner = {{ .Owner }} AND workout = {{.Workout }}
     `
 	)
 
-	// find last exercise if at least one in user workout
-	q, args, err := xs.CompileStatement(tailStmt, workout)
+	data := struct {
+		Owner   string
+		Workout int
+	}{owner, workout}
+
+	q, args, err := xs.CompileStatement(stmt, data)
 	if err != nil {
-		return Exercise{}, fmt.Errorf("tail: %w", err)
+		return 0, fmt.Errorf("lastIndex: compile: %w", err)
 	}
 
-	var tailID int
-
-	err = xs.QueryRow(q, args...).Scan(&tailID)
+	var index sql.NullInt32
+	err = xs.QueryRow(q, args...).Scan(&index)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Exercise{}, nil
+			return 0, nil
 		}
-		return Exercise{}, fmt.Errorf("tail: %w", err)
+		return 0, fmt.Errorf("lastIndex: query: %w", err)
 	}
 
-	tailExercise, err := xs.WithID(tailID)
-	if err != nil {
-		return Exercise{}, fmt.Errorf("tail: %w", err)
+	if !index.Valid {
+		return 0, nil
 	}
-	return tailExercise, nil
+
+	return int(index.Int32), nil
 }
 
-func (xs *SQLExercises) userExists(id int) bool {
-	stmt := `
-  SELECT 1
-  FROM users
-  WHERE user_id = {{ . }}
-  `
-
-	q, args, err := xs.CompileStatement(stmt, id)
-	if err != nil {
-		return false
-	}
-
-	var exists bool
-	if err := xs.QueryRow(q, args...).Scan(&exists); err != nil {
-		return false
-	}
-
-	return exists
-}
-
-func (xs *SQLExercises) workoutExists(id int) bool {
-	stmt := `
+func (xs *SQLExercises) workoutExists(owner string, workout int) bool {
+	const stmt = `
   SELECT 1
   FROM workouts
-  WHERE workout_id = {{ . }}
+  WHERE owner = {{ .Owner }} AND workout_index = {{ .Workout }}
   `
 
-	q, args, err := xs.CompileStatement(stmt, id)
-	if err != nil {
-		return false
-	}
+	data := struct {
+		Owner   string
+		Workout int
+	}{owner, workout}
 
-	var exists bool
-	if err := xs.QueryRow(q, args...).Scan(&exists); err != nil {
-		return false
-	}
-
-	return exists
-}
-
-func (xs *SQLExercises) exerciseExists(id int) bool {
-	stmt := `
-  SELECT 1
-  FROM exercises
-  WHERE exercise_id = {{ . }}
-  `
-
-	q, args, err := xs.CompileStatement(stmt, id)
+	q, args, err := xs.CompileStatement(stmt, data)
 	if err != nil {
 		return false
 	}

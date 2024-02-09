@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/scrot/musclemem-api/internal/workout"
@@ -31,16 +32,20 @@ var listCmd = &cobra.Command{
 }
 
 var listExercisesCmd = &cobra.Command{
-	Use:     "exercises [workout id]",
+	Use:     "exercises [workout index]",
 	Aliases: []string{"ex"},
 	Args:    cobra.ExactArgs(1),
 	Short:   "list all workout exercises",
 	Long: `pretty print all exercises belonging to a workout,
   only workouts that belong to that user can be listed`,
 	Run: func(_ *cobra.Command, args []string) {
-		wid := args[0]
+		var (
+			user    = viper.GetString("user")
+			workout = args[0]
+		)
 
-		payload, err := getJSON(baseurl, fmt.Sprintf("/workouts/%s/exercises", wid))
+		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
+		payload, err := getJSON(baseurl, endpoint)
 		if err != nil {
 			fmt.Printf("api error: %s\n", err)
 			os.Exit(1)
@@ -88,9 +93,9 @@ var listWorkoutsCmd = &cobra.Command{
 		}
 
 		t := newTable()
-		t.SetHeader([]string{"Name"})
+		t.SetHeader([]string{"INDEX", "NAME"})
 		for _, w := range ws {
-			t.Append([]string{w.Name})
+			t.Append([]string{strconv.Itoa(w.Index), w.Name})
 		}
 
 		t.Render()

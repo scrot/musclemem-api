@@ -5,14 +5,12 @@ go 1.22
 require (
 	github.com/VauntDev/tqla v0.0.1
 	github.com/caarlos0/env/v10 v10.0.0
-	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-playground/validator/v10 v10.17.0
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/google/go-cmp v0.6.0
 	github.com/lmittmann/tint v1.0.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/scrot/jsonapi v0.0.0-20230831095923-f3fe5f999874
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 	github.com/zalando/go-keyring v0.2.3

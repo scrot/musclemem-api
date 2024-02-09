@@ -1,9 +1,10 @@
 CREATE TABLE IF NOT EXISTS workouts (
-  workout_id INTEGER PRIMARY KEY,
-  owner INTEGER NOT NULL,
+  owner TEXT NOT NULL,
+  workout_index INTEGER NOT NULL,
   name TEXT NOT NULL,
+  PRIMARY KEY (owner, workout_index),
   FOREIGN KEY (owner)
-    REFERENCES users (user_id)
+    REFERENCES users (username)
     ON UPDATE CASCADE
     ON DELETE CASCADE
 );

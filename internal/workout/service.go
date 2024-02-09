@@ -1,12 +1,13 @@
 package workout
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
+
+	"github.com/scrot/musclemem-api/internal/xhttp"
 )
 
 // Service represents a workout service
@@ -24,75 +25,106 @@ func NewService(l *slog.Logger, ws Workouts) *Service {
 	}
 }
 
-func (s *Service) HandleExercises(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	s.logger.Debug("new exercises request", "id", id)
+// HandleWorkouts returns a list of all workouts of the user in the parameters
+func (s Service) HandleWorkouts(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
 
-	wid, err := strconv.Atoi(id)
+	l := s.logger.With("user", username)
+
+	ws, err := s.workouts.ByOwner(username)
 	if err != nil {
-		s.writeInternalError(w, err)
+		writeInternalError(l, w, err)
+		return
+	}
+	l.Debug("fetched user workouts", "count", len(ws))
+
+	wsJson, err := json.Marshal(ws)
+	if err != nil {
+		writeInternalError(l, w, err)
 		return
 	}
 
-	ws, err := s.workouts.ByID(wid)
-	if err != nil {
-		s.writeInternalError(w, err)
+	w.Header().Add("Content-Type", "application/json")
+	if _, err := w.Write(wsJson); err != nil {
+		writeInternalError(l, w, err)
 		return
 	}
-
-	xs := ws.Exercises(s.workouts)
-	s.logger.Debug("fetching exercises", "count", len(xs))
-
-	xsJSON, err := json.Marshal(xs)
-	if err != nil {
-		s.writeInternalError(w, err)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(xsJSON)
 }
 
 // HandleNewWorkout creates a new workout given a user
+// multiple workouts can be added using an json array
 func (s *Service) HandleNewWorkout(w http.ResponseWriter, r *http.Request) {
-	s.logger.Debug("new create new workout request")
+	username := r.PathValue("username")
 
-	var buf bytes.Buffer
-	defer r.Body.Close()
-	if _, err := buf.ReadFrom(r.Body); err != nil {
-		s.writeInternalError(w, err)
-		return
-	}
+	l := s.logger.With("user", username)
 
-	var wo Workout
-	if err := json.Unmarshal(buf.Bytes(), &wo); err != nil {
-		s.writeInternalError(w, err)
-		return
-	}
-
-	s.logger.Debug("decoded request body", "payload", wo)
-
-	id, err := s.workouts.New(wo.Owner, wo.Name)
+	js, typ, err := xhttp.RequestJSON(r)
 	if err != nil {
-		s.writeInternalError(w, err)
+		writeInternalError(l, w, err)
 		return
 	}
 
-	idJSON, err := json.Marshal(id)
-	if err != nil {
-		s.writeInternalError(w, err)
+	var responseBody []byte
+	switch typ {
+	case xhttp.TypeJSONObject:
+		var wo Workout
+		if err := json.Unmarshal(js, &wo); err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		nwo, err := s.workouts.New(username, wo.Name)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		responseBody, err = json.Marshal(nwo)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		l.Debug(fmt.Sprintf("workout %s created", nwo.Key()))
+	case xhttp.TypeJSONArray:
+		var ws []Workout
+		if err := json.Unmarshal(js, &ws); err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		var nws []Workout
+		for _, wo := range ws {
+			nwo, err := s.workouts.New(username, wo.Name)
+			if err != nil {
+				writeInternalError(l, w, err)
+				return
+			}
+			nws = append(nws, nwo)
+		}
+
+		var err error
+		responseBody, err = json.Marshal(nws)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+
+		l.Debug(fmt.Sprintf("%d workouts created", len(nws)))
+	default:
+		writeInternalError(l, w, errors.New("invalid json in request body"))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(idJSON); err != nil {
-		s.writeInternalError(w, err)
+	if _, err := w.Write(responseBody); err != nil {
+		writeInternalError(l, w, err)
 		return
 	}
 }
 
-func (s *Service) writeInternalError(w http.ResponseWriter, err error) {
-	msg := fmt.Errorf("exercise handler error: %w", err).Error()
-	s.logger.Error(msg)
+func writeInternalError(l *slog.Logger, w http.ResponseWriter, err error) {
+	msg := fmt.Errorf("%w", err).Error()
+	l.Error(msg)
 	http.Error(w, msg, http.StatusInternalServerError)
 }

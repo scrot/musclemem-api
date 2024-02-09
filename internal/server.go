@@ -58,13 +58,12 @@ func (s *Server) Routes() http.Handler {
 	router := http.NewServeMux()
 
 	router.HandleFunc("POST /users", s.users.HandleNewUser)
-	router.HandleFunc("GET /users/{username}/workouts", s.users.HandleWorkouts)
-
-	router.HandleFunc("POST /workouts", s.workouts.HandleNewWorkout)
-	router.HandleFunc("GET /workouts/{id}/exercises", s.workouts.HandleExercises)
-
-	router.HandleFunc("GET /exercises/{id}", s.exercises.HandleSingleExercise)
-	router.HandleFunc("POST /exercises", s.exercises.HandleNewExercise)
+	router.HandleFunc("GET /users/{username}/workouts", s.workouts.HandleWorkouts)
+	router.HandleFunc("POST /users/{username}/workouts", s.workouts.HandleNewWorkout)
+	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises", s.exercises.HandleExercises)
+	router.HandleFunc("POST /users/{username}/workouts/{workout}/exercises", s.exercises.HandleNewExercise)
+	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises/{exercise}", s.exercises.HandleSingleExercise)
+	router.HandleFunc("POST /users/{username}/workouts/{workout}/exercises/{exercise}/swap", s.exercises.HandleSwapExercises)
 
 	return router
 }

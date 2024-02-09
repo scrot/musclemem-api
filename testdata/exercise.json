@@ -1,7 +1,5 @@
 {
-  "owner": 1,
-  "workout": 1,
-  "name": "Benchpress",
-  "weight": 100.0,
-  "repetitions": 10
+  "name": "Push-ups",
+  "weight": 0,
+  "repetitions": 20
 }
