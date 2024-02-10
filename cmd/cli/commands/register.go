@@ -61,7 +61,7 @@ var registerCmd = &cobra.Command{
 			}
 		}
 
-		resp, err := postJSON(baseurl, "/users", bytes.NewReader(data))
+		resp, err := doJSON(http.MethodPost, baseurl, "/users", bytes.NewReader(data))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

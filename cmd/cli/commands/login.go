@@ -45,7 +45,5 @@ var loginCmd = &cobra.Command{
 			fmt.Printf("updating configuration file: %s", err)
 			os.Exit(1)
 		}
-
-		fmt.Println("logged in")
 	},
 }

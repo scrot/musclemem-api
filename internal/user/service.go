@@ -1,7 +1,6 @@
 package user
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -21,18 +20,14 @@ func NewService(l *slog.Logger, us Users) *Service {
 }
 
 // HandleNewUser creates a new user if the e-mail is not already registered
-// TODO: to batch add multiple users, use a json array in the request body
 func (s Service) HandleNewUser(w http.ResponseWriter, r *http.Request) {
 	l := s.logger
 
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r.Body); err != nil {
-		writeInternalError(l, w, err)
-		return
-	}
+	defer r.Body.Close()
+	dec := json.NewDecoder(r.Body)
 
 	var u User
-	if err := json.Unmarshal(buf.Bytes(), &u); err != nil {
+	if err := dec.Decode(&u); err != nil {
 		writeInternalError(l, w, err)
 		return
 	}

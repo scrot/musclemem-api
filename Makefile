@@ -2,7 +2,7 @@ SERVER_PACKAGE_PATH := ./cmd/server
 SERVER_BINARY := musclemem-api
 
 CLI_PACKAGE_PATH := ./cmd/cli
-CLI_BINARY := musclemem-cli
+CLI_BINARY := mm
 
 OUTPUT_PATH := /tmp/${BINARY_NAME}
 
@@ -27,19 +27,16 @@ confirm:
 no-dirty:
 	git diff --exit-code
 
+
 # ==================================================================================== #
 # QUALITY CONTROL
 # ==================================================================================== #
 
-## kill: kills process on running port :8080
-.PHONY: kill
-kill:
-	lsof -t -i:8080 | xargs -r kill
 
 ## tidy: format code and tidy modfile
 .PHONY: tidy
 tidy:
-	go fmt ./...
+	gofumpt -w .
 	go mod tidy -v
 
 ## audit: run quality control checks
@@ -52,10 +49,6 @@ audit:
 	go test -race -buildvcs -vet=off ./...
 
 
-# ==================================================================================== #
-# DEVELOPMENT
-# ==================================================================================== #
-
 ## test: run all tests
 .PHONY: test
 test:
@@ -64,30 +57,73 @@ test:
 ## test/cover: run all tests and display coverage
 .PHONY: test/cover
 test/cover:
-	go test -v -race -buildvcs -coverprofile=${OUTPUT_PATH}/coverage.out ./...
-	go tool cover -html=${OUTPUT_PATH}/coverage.out
+	go test -v -race -buildvcs -coverprofile=${OUTPUT_PATH}coverage.out ./...
+	go tool cover -html=${OUTPUT_PATH}coverage.out
 
-## build: build the application
-.PHONY: build/server
-build/server: tidy
+# ==================================================================================== #
+# SERVER
+# ==================================================================================== #
+
+## server/build: build the server
+.PHONY: server/build
+server/build: tidy
 	@go build -ldflags='-X main.version=$(shell git rev-parse --short HEAD)-snapshot' \
-		-o=${OUTPUT_PATH}/${SERVER_BINARY} ${SERVER_PACKAGE_PATH}
+		-o=${OUTPUT_PATH}${SERVER_BINARY} ${SERVER_PACKAGE_PATH}
 
-## run: run the application
-.PHONY: run/server
-run/server: build/server
-	@${OUTPUT_PATH}/${SERVER_BINARY}
+## server/run: run the server locally
+.PHONY: server/run
+server/run: server/build
+	@${OUTPUT_PATH}${SERVER_BINARY}
 
-## run/live: run the application with reloading on file changes
-.PHONY: live/server
-live/server:
+## server/live: run the server with reloading on file changes
+.PHONY: server/live
+server/live:
 	@go run github.com/cosmtrek/air@latest \
-		--build.cmd "make kill && make build/server" \
-		--build.bin "${OUTPUT_PATH}/${SERVER_BINARY}" \
+		--build.cmd "make server/kill && make server/build" \
+		--build.bin "${OUTPUT_PATH}${SERVER_BINARY}" \
 		--build.delay "100" \
 		--build.exclude_dir "" \
 		--build.include_ext "go, sql" \
 		--misc.clean_on_exit "true"
+
+## server/kill: kills the server on running port :8080
+.PHONY: server/kill
+server/kill:
+	lsof -t -i:8080 | xargs -r kill
+
+# ==================================================================================== #
+# CLI
+# ==================================================================================== #
+
+## cli/build: build the server
+.PHONY: cli/build
+cli/build: tidy
+	@go build -o=${OUTPUT_PATH}${CLI_BINARY} ${CLI_PACKAGE_PATH}
+
+## cli/run: run the server locally
+.PHONY: cli/run
+cli/run: cli/build
+	@${OUTPUT_PATH}${CLI_BINARY}
+
+## cli/init: loads the testdata
+.PHONY: cli/init 
+cli/init: cli/build
+	${OUTPUT_PATH}${CLI_BINARY} logout
+	${OUTPUT_PATH}${CLI_BINARY} register -f testdata/user.json
+	${OUTPUT_PATH}${CLI_BINARY} login -u $(shell jq -r '.username' ./testdata/user.json) -p $(shell jq -r '.password' ./testdata/user.json)
+	${OUTPUT_PATH}${CLI_BINARY} add wo -f testdata/workout.json
+	${OUTPUT_PATH}${CLI_BINARY} add wo -f testdata/workouts.json
+	${OUTPUT_PATH}${CLI_BINARY} add ex 1 -f testdata/exercise.json
+	${OUTPUT_PATH}${CLI_BINARY} add ex 1 -f testdata/exercises.json
+
+## cli/alias: creates a temporary alias to cli command
+.PHONY: cli/alias
+cli/alias:
+	alias mm='make cli/build && ${OUTPUT_PATH}${CLI_BINARY}'
+
+# ==================================================================================== #
+# OPERATIONS
+# ==================================================================================== #
 
 # run/docker: create and run docker image in docker environment
 .PHONY: run/docker
@@ -101,11 +137,6 @@ run/kubernetes: build
 	kubectl delete -f ./charts/musclemem-api.yaml
 	kubectl apply -f ./charts/musclemem-api.yaml
 	kubectl port-forward deployment/musclemem-api 8080:80
-	
-
-# ==================================================================================== #
-# OPERATIONS
-# ==================================================================================== #
 
 ## kube/ghcr-creds: store ghcr.io container regestry creds in kubernetes
 .PHONY: kube/ghcr-creds

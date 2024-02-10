@@ -20,7 +20,7 @@ var logoutCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, _ []string) {
 		if viper.GetString("user") == "" {
 			fmt.Println("no user logged in")
-			os.Exit(1)
+			return
 		}
 
 		if err := keyring.Delete(appname, viper.GetString("user")); err != nil {

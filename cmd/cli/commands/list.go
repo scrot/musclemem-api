@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 
@@ -45,14 +46,17 @@ var listExercisesCmd = &cobra.Command{
 		)
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
-		payload, err := getJSON(baseurl, endpoint)
+		resp, err := doJSON(http.MethodGet, baseurl, endpoint, nil)
 		if err != nil {
 			fmt.Printf("api error: %s\n", err)
 			os.Exit(1)
 		}
 
+		defer resp.Body.Close()
+		dec := json.NewDecoder(resp.Body)
+
 		var xs []exercise.Exercise
-		if err := json.Unmarshal(payload, &xs); err != nil {
+		if err := dec.Decode(&xs); err != nil {
 			fmt.Printf("json error: %s\n", err)
 			os.Exit(1)
 		}
@@ -80,14 +84,18 @@ var listWorkoutsCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, _ []string) {
 		u := viper.GetString("user")
 
-		payload, err := getJSON(baseurl, fmt.Sprintf("/users/%s/workouts", u))
+		endpoint := fmt.Sprintf("/users/%s/workouts", u)
+		resp, err := doJSON(http.MethodGet, baseurl, endpoint, nil)
 		if err != nil {
 			fmt.Printf("api error: %s\n", err)
 			os.Exit(1)
 		}
 
+		defer resp.Body.Close()
+		dec := json.NewDecoder(resp.Body)
+
 		var ws []workout.Workout
-		if err := json.Unmarshal(payload, &ws); err != nil {
+		if err := dec.Decode(&ws); err != nil {
 			fmt.Printf("json error: %s\n", err)
 			os.Exit(1)
 		}

@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +11,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func postJSON(baseurl string, endpoint string, r io.Reader) (*http.Response, error) {
+func doJSON(method string, baseurl string, endpoint string, r io.Reader) (*http.Response, error) {
 	if baseurl == "" {
 		return nil, errors.New("no base url provided")
 	}
@@ -26,40 +25,18 @@ func postJSON(baseurl string, endpoint string, r io.Reader) (*http.Response, err
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
 
-	resp, err := http.Post(url, "application/json", r)
+	req, err := http.NewRequest(method, url, r)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	return resp, nil
-}
-
-func getJSON(baseurl string, endpoint string) ([]byte, error) {
-	if baseurl == "" {
-		return []byte{}, errors.New("no base url provided")
-	}
-
-	if endpoint == "" {
-		return []byte{}, errors.New("no endpoint provided")
-	}
-
-	url, err := url.JoinPath(baseurl, endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("invalid url: %w", err)
-	}
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return []byte{}, err
-	}
-	defer resp.Body.Close()
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(resp.Body); err != nil {
-		return []byte{}, err
-	}
-
-	return buf.Bytes(), nil
 }
 
 func newTable() *tablewriter.Table {

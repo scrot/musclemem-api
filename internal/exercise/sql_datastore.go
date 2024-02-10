@@ -303,9 +303,9 @@ func (xs *SQLExercises) Delete(owner string, workout int, exercise int) (Exercis
 
 func (xs *SQLExercises) Swap(owner string, workout int, e1 int, e2 int) error {
 	const stmt = `
-    UPDATE exercises
-    SET exercise_index = {{ .NewIndex }}
-    WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index {{ .Index }}
+  UPDATE exercises
+  SET exercise_index = {{ .NewIndex }}
+  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Index }}
   `
 
 	if owner == "" || workout <= 0 || e1 <= 0 || e2 <= 0 {
@@ -320,43 +320,63 @@ func (xs *SQLExercises) Swap(owner string, workout int, e1 int, e2 int) error {
 		return fmt.Errorf("Swap: check index %d: %w", e2, err)
 	}
 
-	newE1 := struct {
-		Owner           string
-		Workout         int
-		Index, NewIndex int
-	}{owner, workout, e1, e2}
+	var (
+		temp = struct {
+			Owner           string
+			Workout         int
+			Index, NewIndex int
+		}{owner, workout, e2, 0}
 
-	newE2 := struct {
-		Owner           string
-		Workout         int
-		Index, NewIndex int
-	}{owner, workout, e2, e1}
+		newE1 = struct {
+			Owner           string
+			Workout         int
+			Index, NewIndex int
+		}{owner, workout, e1, e2}
+
+		newE2 = struct {
+			Owner           string
+			Workout         int
+			Index, NewIndex int
+		}{owner, workout, 0, e1}
+	)
 
 	tx, err := xs.Begin()
 	if err != nil {
 		return fmt.Errorf("Swap: new transaction: %w", err)
 	}
 
-	q, args, err := xs.CompileStatement(stmt, newE1)
+	// unique key contraint, first move to other index
+	q, args, err := xs.CompileStatement(stmt, temp)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("Swap: compile new exercise %d: %w", e1, err)
+		return fmt.Errorf("Swap: compile temp: %w", err)
 	}
 
 	if _, err = tx.Exec(q, args...); err != nil {
 		tx.Rollback()
-		return fmt.Errorf("Swap: update exercise %d: %w", e1, err)
+		return fmt.Errorf("Swap: update temp: %w", err)
+	}
+
+	q, args, err = xs.CompileStatement(stmt, newE1)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Swap: compile %d: %w", e1, err)
+	}
+
+	if _, err = tx.Exec(q, args...); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Swap: update %d: %w", e1, err)
 	}
 
 	q, args, err = xs.CompileStatement(stmt, newE2)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("Swap: compile new exercise %d: %w", e2, err)
+		return fmt.Errorf("Swap: compile %d: %w", e2, err)
 	}
 
 	if _, err = tx.Exec(q, args...); err != nil {
 		tx.Rollback()
-		return fmt.Errorf("Swap: update exercise %d: %w", e2, err)
+		return fmt.Errorf("Swap: update %d: %w", e2, err)
 	}
 
 	tx.Commit()

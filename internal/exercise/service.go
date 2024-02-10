@@ -1,7 +1,6 @@
 package exercise
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,6 +57,8 @@ func (s *Service) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	l.Debug(fmt.Sprintf("fetched exercise %s", e.Key()))
+
 	payload, err := json.Marshal(&e)
 	if err != nil {
 		writeInternalError(l, w, err)
@@ -93,7 +94,7 @@ func (s *Service) HandleExercises(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	l.Debug("fetching exercises", "count", len(xs))
+	l.Debug("fetched exercises", "count", len(xs))
 
 	xsJSON, err := json.Marshal(xs)
 	if err != nil {
@@ -187,7 +188,83 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Service) createExercise(l *slog.Logger, w http.ResponseWriter, e Exercise) {
+func (s *Service) HandleMoveUpExercise(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+		exercise = r.PathValue("exercise")
+	)
+
+	l := s.logger.With("user", username, "workout", workout, "exercise", exercise)
+
+	wi, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	ei1, err := strconv.Atoi(exercise)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	if ei1 > 1 {
+		ei2 := ei1 - 1
+		l = l.With("to-index", ei2)
+		if err := s.exercises.Swap(username, wi, ei1, ei2); err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+	} else {
+		writeInternalError(l, w, errors.New("already first exercise"))
+		return
+	}
+
+	l.Debug("moved exercise up")
+}
+
+func (s *Service) HandleMoveDownExercise(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+		exercise = r.PathValue("exercise")
+	)
+
+	l := s.logger.With("user", username, "workout", workout, "exercise", exercise)
+
+	wi, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	ei1, err := strconv.Atoi(exercise)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	xs, err := s.exercises.ByWorkout(username, wi)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	if ei1 < len(xs)-1 {
+		ei2 := ei1 + 1
+		l = l.With("to-index", ei2)
+
+		if err := s.exercises.Swap(username, wi, ei1, ei2); err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+	} else {
+		writeInternalError(l, w, errors.New("already last exercise"))
+		return
+	}
+
+	l.Debug("moved exercise down")
 }
 
 func (s *Service) HandleSwapExercises(w http.ResponseWriter, r *http.Request) {
@@ -211,37 +288,26 @@ func (s *Service) HandleSwapExercises(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var buf bytes.Buffer
 	defer r.Body.Close()
-	if _, err := buf.ReadFrom(r.Body); err != nil {
+	dec := json.NewDecoder(r.Body)
+
+	data := struct {
+		With int `json:"with"`
+	}{}
+	if err := dec.Decode(&data); err != nil {
 		writeInternalError(l, w, err)
 		return
 	}
 
-	var payload map[string]interface{}
-	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
-		writeInternalError(l, w, err)
-		return
-	}
-
-	val, ok := payload["with"]
-	if !ok {
-		writeInternalError(l, w, fmt.Errorf("require body parameters %q", "with"))
-		return
-	}
-
-	ei2, ok := val.(int)
-	if !ok {
-		writeInternalError(l, w, fmt.Errorf("body parameter should be a digit"))
-		return
-	}
-
-	l = l.With("with", ei2)
+	ei2 := data.With
+	l = l.With("to-index", ei2)
 
 	if err := s.exercises.Swap(username, wi, ei1, ei2); err != nil {
 		writeInternalError(l, w, err)
 		return
 	}
+
+	l.Debug("swapped exercises")
 }
 
 func writeInternalError(l *slog.Logger, w http.ResponseWriter, err error) {

@@ -43,7 +43,7 @@ var addWorkoutCmd = &cobra.Command{
 		defer file.Close()
 
 		endpoint := fmt.Sprintf("/users/%s/workouts", viper.GetString("user"))
-		resp, err := postJSON(baseurl, endpoint, file)
+		resp, err := doJSON(http.MethodPost, baseurl, endpoint, file)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -75,7 +75,7 @@ var addExerciseCmd = &cobra.Command{
 		defer file.Close()
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
-		if _, err := postJSON(baseurl, endpoint, file); err != nil {
+		if _, err := doJSON(http.MethodPost, baseurl, endpoint, file); err != nil {
 			fmt.Println(err)
 		}
 	},
