@@ -39,6 +39,18 @@ func doJSON(method string, baseurl string, endpoint string, r io.Reader) (*http.
 	return resp, nil
 }
 
+func handleResponse(resp *http.Response, respErr error) {
+	if respErr != nil {
+		fmt.Printf("api error: %s\n", respErr)
+		os.Exit(1)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("api error: %s\n", resp.Status)
+		os.Exit(1)
+	}
+}
+
 func newTable() *tablewriter.Table {
 	t := tablewriter.NewWriter(os.Stdout)
 	t.SetBorder(false)

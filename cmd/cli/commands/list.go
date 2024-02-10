@@ -47,10 +47,7 @@ var listExercisesCmd = &cobra.Command{
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
 		resp, err := doJSON(http.MethodGet, baseurl, endpoint, nil)
-		if err != nil {
-			fmt.Printf("api error: %s\n", err)
-			os.Exit(1)
-		}
+		handleResponse(resp, err)
 
 		defer resp.Body.Close()
 		dec := json.NewDecoder(resp.Body)
@@ -85,11 +82,9 @@ var listWorkoutsCmd = &cobra.Command{
 		u := viper.GetString("user")
 
 		endpoint := fmt.Sprintf("/users/%s/workouts", u)
+
 		resp, err := doJSON(http.MethodGet, baseurl, endpoint, nil)
-		if err != nil {
-			fmt.Printf("api error: %s\n", err)
-			os.Exit(1)
-		}
+		handleResponse(resp, err)
 
 		defer resp.Body.Close()
 		dec := json.NewDecoder(resp.Body)

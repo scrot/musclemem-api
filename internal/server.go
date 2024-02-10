@@ -60,6 +60,7 @@ func (s *Server) Routes() http.Handler {
 	router.HandleFunc("POST /users", s.users.HandleNewUser)
 	router.HandleFunc("GET /users/{username}/workouts", s.workouts.HandleWorkouts)
 	router.HandleFunc("POST /users/{username}/workouts", s.workouts.HandleNewWorkout)
+	router.HandleFunc("DELETE /users/{username}/workouts/{workout}", s.workouts.HandleDeleteWorkout)
 	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises", s.exercises.HandleExercises)
 	router.HandleFunc("POST /users/{username}/workouts/{workout}/exercises", s.exercises.HandleNewExercise)
 	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises/{exercise}", s.exercises.HandleSingleExercise)

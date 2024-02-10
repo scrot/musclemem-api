@@ -53,6 +53,80 @@ func (ws *SQLWorkouts) New(owner string, name string) (Workout, error) {
 	return workout, nil
 }
 
+func (ws *SQLWorkouts) Delete(owner string, workout int) (Workout, error) {
+	const (
+		stmt = `
+    DELETE FROM workouts
+    WHERE owner = {{ .Owner }} AND workout_index = {{ .Workout }}
+    `
+
+		indStmt = `
+    UPDATE workouts
+    SET workout_index = {{ .NewIndex }}
+    WHERE owner = {{ .Owner }} AND workout_index = {{ .Index }}
+    `
+	)
+	if owner == "" || workout <= 0 {
+		return Workout{}, fmt.Errorf("Delete: %w", ErrInvalidFields)
+	}
+
+	wo, err := ws.ByID(owner, workout)
+	if err != nil {
+		return Workout{}, fmt.Errorf("Delete: fetch workout: %w", err)
+	}
+
+	tx, err := ws.Begin()
+	if err != nil {
+		return Workout{}, fmt.Errorf("Delete: begin transaction: %w", err)
+	}
+
+	data := struct {
+		Owner   string
+		Workout int
+	}{owner, workout}
+
+	q, args, err := ws.CompileStatement(stmt, data)
+	if err != nil {
+		return Workout{}, fmt.Errorf("Delete: compile delete: %w", err)
+	}
+
+	if _, err := tx.Exec(q, args...); err != nil {
+		tx.Rollback()
+		return Workout{}, fmt.Errorf("Delete: execute delete: %w", err)
+	}
+
+	wos, err := ws.ByOwner(owner)
+	if err != nil {
+		return Workout{}, fmt.Errorf("Delete: fetch workouts: %w", err)
+	}
+
+	// update all subsequent workout indices
+	for _, w := range wos {
+		if w.Index > workout {
+			data := struct {
+				Owner           string
+				Index, NewIndex int
+			}{owner, w.Index, w.Index - 1}
+
+			q, args, err := ws.CompileStatement(indStmt, data)
+			if err != nil {
+				return Workout{}, fmt.Errorf("Delete: compile update %d: %w", w.Index, err)
+			}
+
+			if _, err := tx.Exec(q, args...); err != nil {
+				tx.Rollback()
+				return Workout{}, fmt.Errorf("Delete: execute update %d: %w", w.Index, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Workout{}, fmt.Errorf("Delete: commit transaction %w", err)
+	}
+
+	return wo, nil
+}
+
 func (ws *SQLWorkouts) ByID(owner string, workout int) (Workout, error) {
 	const stmt = `
   SELECT owner, workout_index, name

@@ -10,6 +10,9 @@ import (
 )
 
 func init() {
+	addExerciseCmd.Flags().IntVarP(&addToWorkout, "workout", "w", 0, "index of user workout (required)")
+	addExerciseCmd.MarkFlagRequired("workout")
+
 	addCmd.PersistentFlags().StringVarP(&filePath, "file", "f", "", "path to json file (required)")
 	addCmd.MarkPersistentFlagRequired("file")
 
@@ -28,6 +31,32 @@ var addCmd = &cobra.Command{
   and new workout exercises`,
 }
 
+var addToWorkout int
+
+var addExerciseCmd = &cobra.Command{
+	Use:     "exercise",
+	Aliases: []string{"ex"},
+	Short:   "Add new exercise",
+	Long:    `Add a new exercise to the workout for the signed in user`,
+	Args:    cobra.NoArgs,
+	Run: func(_ *cobra.Command, _ []string) {
+		var (
+			user    = viper.GetString("user")
+			workout = addToWorkout
+		)
+
+		file, err := os.Open(filePath)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		defer file.Close()
+
+		endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises", user, workout)
+		handleResponse(doJSON(http.MethodPost, baseurl, endpoint, file))
+	},
+}
+
 var addWorkoutCmd = &cobra.Command{
 	Use:     "workout",
 	Aliases: []string{"wo"},
@@ -43,40 +72,6 @@ var addWorkoutCmd = &cobra.Command{
 		defer file.Close()
 
 		endpoint := fmt.Sprintf("/users/%s/workouts", viper.GetString("user"))
-		resp, err := doJSON(http.MethodPost, baseurl, endpoint, file)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("api error: %s", resp.Status)
-		}
-	},
-}
-
-var addExerciseCmd = &cobra.Command{
-	Use:     "exercise [workout index]",
-	Aliases: []string{"ex"},
-	Short:   "Add new exercise",
-	Long:    `Add a new exercise to the workout for the signed in user`,
-	Args:    cobra.ExactArgs(1),
-	Run: func(_ *cobra.Command, args []string) {
-		var (
-			user    = viper.GetString("user")
-			workout = args[0]
-		)
-
-		file, err := os.Open(filePath)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		defer file.Close()
-
-		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
-		if _, err := doJSON(http.MethodPost, baseurl, endpoint, file); err != nil {
-			fmt.Println(err)
-		}
+		handleResponse(doJSON(http.MethodPost, baseurl, endpoint, file))
 	},
 }

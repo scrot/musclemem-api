@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/scrot/musclemem-api/internal/xhttp"
 )
@@ -109,7 +110,6 @@ func (s *Service) HandleNewWorkout(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(l, w, err)
 			return
 		}
-
 		l.Debug(fmt.Sprintf("%d workouts created", len(nws)))
 	default:
 		writeInternalError(l, w, errors.New("invalid json in request body"))
@@ -121,6 +121,41 @@ func (s *Service) HandleNewWorkout(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(l, w, err)
 		return
 	}
+}
+
+func (s *Service) HandleDeleteWorkout(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+	)
+
+	l := s.logger.With("username", username, "workout", workout)
+
+	windex, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	delWo, err := s.workouts.Delete(username, windex)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	respBody, err := json.Marshal(delWo)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	if _, err := w.Write(respBody); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	l.Debug("deleted workout")
 }
 
 func writeInternalError(l *slog.Logger, w http.ResponseWriter, err error) {

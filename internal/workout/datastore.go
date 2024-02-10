@@ -14,6 +14,7 @@ var (
 type Workouts interface {
 	Retreiver
 	Storer
+	Deleter
 }
 
 // Retreiver implementations allow for exercises to be retreived
@@ -34,4 +35,12 @@ type Storer interface {
 
 	// ChangeName updates the name of an existing workout
 	ChangeName(owner string, workout int, name string) (Workout, error)
+}
+
+// Deleter implementations allow for existing workouts to be deleted
+type Deleter interface {
+	// Delete deletes an existing user workout,
+	// It also updates the indices of adjecent exercises
+	// The deleted workout is returned as a result
+	Delete(owner string, workout int) (Workout, error)
 }

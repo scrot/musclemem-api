@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 
@@ -62,24 +61,15 @@ var registerCmd = &cobra.Command{
 		}
 
 		resp, err := doJSON(http.MethodPost, baseurl, "/users", bytes.NewReader(data))
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		handleResponse(resp, err)
+
+		defer resp.Body.Close()
+		dec := json.NewDecoder(resp.Body)
 
 		var u user.User
-		body, _ := io.ReadAll(resp.Body)
-		defer resp.Body.Close()
-		if err = json.Unmarshal(body, &u); err != nil {
+		if err = dec.Decode(&u); err != nil {
 			fmt.Printf("decode error: %s\n", err)
 			os.Exit(1)
 		}
-
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("api error: %s\n", resp.Status)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Registered new user %s\n", u.Username)
 	},
 }
