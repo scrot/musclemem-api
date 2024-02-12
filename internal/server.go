@@ -61,6 +61,7 @@ func (s *Server) Routes() http.Handler {
 	router.HandleFunc("GET /users/{username}/workouts", s.workouts.HandleWorkouts)
 	router.HandleFunc("POST /users/{username}/workouts", s.workouts.HandleNewWorkout)
 	router.HandleFunc("DELETE /users/{username}/workouts/{workout}", s.workouts.HandleDeleteWorkout)
+	router.HandleFunc("PATCH /users/{username}/workouts/{workout}", s.workouts.HandleChangeWorkout)
 	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises", s.exercises.HandleExercises)
 	router.HandleFunc("POST /users/{username}/workouts/{workout}/exercises", s.exercises.HandleNewExercise)
 	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises/{exercise}", s.exercises.HandleSingleExercise)

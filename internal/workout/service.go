@@ -123,6 +123,8 @@ func (s *Service) HandleNewWorkout(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleDeleteWorkout handles a delete request for a user workout
+// requires {username} and {workout} path variables
 func (s *Service) HandleDeleteWorkout(w http.ResponseWriter, r *http.Request) {
 	var (
 		username = r.PathValue("username")
@@ -156,6 +158,54 @@ func (s *Service) HandleDeleteWorkout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	l.Debug("deleted workout")
+}
+
+// HandleChangeWorkout updates fields of a user workout
+// requires {username} and {workout} path variables
+func (s *Service) HandleChangeWorkout(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+	)
+
+	l := s.logger.With("username", username, "workout", workout)
+
+	wid, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	defer r.Body.Close()
+	dec := json.NewDecoder(r.Body)
+
+	var patch Workout
+	if err := dec.Decode(&patch); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	var wo Workout
+	switch {
+	case patch.Name != "":
+		l = l.With("name", patch.Name)
+		wo, err = s.workouts.ChangeName(username, wid, patch.Name)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+	default: // remove due to fallthrough
+		writeInternalError(l, w, errors.New("nothing to update"))
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(wo); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
 }
 
 func writeInternalError(l *slog.Logger, w http.ResponseWriter, err error) {
