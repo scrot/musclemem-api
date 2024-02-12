@@ -3,19 +3,23 @@ package commands
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
+	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 func init() {
-	editExerciseCmd.PersistentFlags().IntVarP(&editWorkout, "workout", "w", 0, "index of user workout (required)")
+	editExerciseCmd.Flags().StringVar(&changeExerciseName, "name", "", "change exercise name")
+	editExerciseCmd.Flags().Float64Var(&changeExerciseWeight, "weight", 0, "change exercise weight")
+	editExerciseCmd.Flags().IntVar(&changeExerciseRepetitions, "reps", 0.0, "change exercise repetitons")
+	editExerciseCmd.PersistentFlags().IntVarP(&changeWorkoutExercise, "workout", "w", 0, "index of user workout (required)")
 	editExerciseCmd.MarkPersistentFlagRequired("workout")
 	editExerciseCmd.AddCommand(exerciseDownCmd, exerciseUpCmd, exerciseSwapCmd)
 
@@ -30,17 +34,47 @@ var editCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "Edit an user resource",
 	Long:  `Edit an user resource, the user must be logged in`,
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.NoArgs,
 }
 
 var (
-	editWorkout     int
+	changeWorkoutExercise     int
+	changeExerciseName        string
+	changeExerciseWeight      float64
+	changeExerciseRepetitions int
+
 	editExerciseCmd = &cobra.Command{
-		Use:     "exercise",
+		Use:     "exercise INDEX",
 		Aliases: []string{"ex"},
 		Short:   "Edit an exercise",
 		Long:    `Edit an exercise of a user workout, the user must be logged in`,
-		Args:    cobra.NoArgs,
+		Args:    cobra.ExactArgs(1),
+		Run: func(_ *cobra.Command, args []string) {
+			username := viper.GetString("user")
+
+			if changeExerciseName == "" && changeExerciseWeight == 0 && changeExerciseRepetitions == 0 {
+				handleCLIError(errors.New("missing edit flags"))
+			}
+
+			ei, err := strconv.Atoi(args[0])
+			if err != nil {
+				handleCLIError(err)
+			}
+
+			patch := exercise.Exercise{
+				Name:        changeExerciseName,
+				Weight:      changeExerciseWeight,
+				Repetitions: changeExerciseRepetitions,
+			}
+
+			payload, err := json.Marshal(&patch)
+			if err != nil {
+				handleCLIError(err)
+			}
+
+			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d", username, changeWorkoutExercise, ei)
+			handleResponse(doJSON("PATCH", baseurl, endpoint, bytes.NewReader(payload)))
+		},
 	}
 )
 
@@ -59,14 +93,14 @@ var (
 				name     = changeWorkoutName
 			)
 
-			if username == "" || wo == "" || changeWorkoutName == "" {
-				fmt.Printf("missing argument or flag\n")
+			if changeWorkoutName == "" {
+				handleCLIError(errors.New("missing edit flag"))
 			}
 
 			patch := workout.Workout{Name: name}
 			payload, err := json.Marshal(patch)
 			if err != nil {
-				fmt.Printf("json error: %s", err)
+				handleCLIError(err)
 			}
 
 			endpoint := fmt.Sprintf("/users/%s/workouts/%s", username, wo)
@@ -84,13 +118,12 @@ var exerciseDownCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, args []string) {
 		var (
 			username = viper.GetString("user")
-			workout  = editWorkout
+			workout  = changeWorkoutExercise
 		)
 
 		e1, err := strconv.Atoi(args[0])
 		if err != nil {
-			fmt.Printf("arg (%s) is not a digit", args[0])
-			os.Exit(1)
+			handleCLIError(errors.New("invalid arg"))
 		}
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d/down", username, workout, e1)
@@ -107,13 +140,12 @@ var exerciseUpCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, args []string) {
 		var (
 			username = viper.GetString("user")
-			workout  = editWorkout
+			workout  = changeWorkoutExercise
 		)
 
 		e1, err := strconv.Atoi(args[0])
 		if err != nil {
-			fmt.Printf("arg (%s) is not a digit", args[0])
-			os.Exit(1)
+			handleCLIError(errors.New("invalid args"))
 		}
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d/up", username, workout, e1)
@@ -132,19 +164,17 @@ var exerciseSwapCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, args []string) {
 		var (
 			username = viper.GetString("user")
-			workout  = editWorkout
+			workout  = changeWorkoutExercise
 		)
 
 		e1, err := strconv.Atoi(args[0])
 		if err != nil {
-			fmt.Printf("arg (%s) is not a digit", args[0])
-			os.Exit(1)
+			handleCLIError(errors.New("invalid args"))
 		}
 
 		e2, err := strconv.Atoi(args[1])
 		if err != nil {
-			fmt.Printf("arg (%s) is not a digit", args[1])
-			os.Exit(1)
+			handleCLIError(errors.New("invalid args"))
 		}
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d/swap", username, workout, e1)

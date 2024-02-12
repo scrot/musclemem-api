@@ -39,15 +39,20 @@ func doJSON(method string, baseurl string, endpoint string, r io.Reader) (*http.
 	return resp, nil
 }
 
+func handleCLIError(err error) {
+	fmt.Printf("cli error: %s\n", err)
+	os.Exit(0)
+}
+
 func handleResponse(resp *http.Response, respErr error) {
 	if respErr != nil {
 		fmt.Printf("api error: %s\n", respErr)
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("api error: %s\n", resp.Status)
-		os.Exit(1)
+		os.Exit(0)
 	}
 }
 

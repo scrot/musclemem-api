@@ -14,6 +14,9 @@ import (
 )
 
 func init() {
+	listExercisesCmd.PersistentFlags().IntVarP(&listWorkoutExercises, "workout", "w", 0, "index of user workout (required)")
+	listExercisesCmd.MarkPersistentFlagRequired("workout")
+
 	listCmd.AddCommand(
 		listExercisesCmd,
 		listWorkoutsCmd,
@@ -32,45 +35,48 @@ var listCmd = &cobra.Command{
 	},
 }
 
-var listExercisesCmd = &cobra.Command{
-	Use:     "exercises [workout index]",
-	Aliases: []string{"ex"},
-	Args:    cobra.ExactArgs(1),
-	Short:   "list all workout exercises",
-	Long: `pretty print all exercises belonging to a workout,
+var (
+	listWorkoutExercises int
+	listExercisesCmd     = &cobra.Command{
+		Use:     "exercises",
+		Aliases: []string{"ex"},
+		Args:    cobra.NoArgs,
+		Short:   "list all workout exercises",
+		Long: `pretty print all exercises belonging to a workout,
   only workouts that belong to that user can be listed`,
-	Run: func(_ *cobra.Command, args []string) {
-		var (
-			user    = viper.GetString("user")
-			workout = args[0]
-		)
+		Run: func(_ *cobra.Command, _ []string) {
+			var (
+				user    = viper.GetString("user")
+				workout = listWorkoutExercises
+			)
 
-		endpoint := fmt.Sprintf("/users/%s/workouts/%s/exercises", user, workout)
-		resp, err := doJSON(http.MethodGet, baseurl, endpoint, nil)
-		handleResponse(resp, err)
+			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises", user, workout)
+			resp, err := doJSON(http.MethodGet, baseurl, endpoint, nil)
+			handleResponse(resp, err)
 
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
+			defer resp.Body.Close()
+			dec := json.NewDecoder(resp.Body)
 
-		var xs []exercise.Exercise
-		if err := dec.Decode(&xs); err != nil {
-			fmt.Printf("json error: %s\n", err)
-			os.Exit(1)
-		}
+			var xs []exercise.Exercise
+			if err := dec.Decode(&xs); err != nil {
+				fmt.Printf("json error: %s\n", err)
+				os.Exit(1)
+			}
 
-		t := newTable()
-		t.SetHeader([]string{"#", "NAME", "WEIGHT", "REPS"})
-		for i, x := range xs {
-			t.Append([]string{
-				fmt.Sprintf("%d", i+1),
-				x.Name,
-				fmt.Sprintf("%.1f", x.Weight),
-				fmt.Sprintf("%d", x.Repetitions),
-			})
-		}
-		t.Render()
-	},
-}
+			t := newTable()
+			t.SetHeader([]string{"#", "NAME", "WEIGHT", "REPS"})
+			for i, x := range xs {
+				t.Append([]string{
+					fmt.Sprintf("%d", i+1),
+					x.Name,
+					fmt.Sprintf("%.1f", x.Weight),
+					fmt.Sprintf("%d", x.Repetitions),
+				})
+			}
+			t.Render()
+		},
+	}
+)
 
 var listWorkoutsCmd = &cobra.Command{
 	Use:     "workouts",

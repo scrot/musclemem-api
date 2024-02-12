@@ -74,6 +74,7 @@ func (s *Service) HandleSingleExercise(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleExercises retrieves all exercises of a user's workout
+// requires {username} and {workout} path variables
 func (s *Service) HandleExercises(w http.ResponseWriter, r *http.Request) {
 	var (
 		username = r.PathValue("username")
@@ -188,6 +189,76 @@ func (s Service) HandleNewExercise(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleChangeExercise
+func (s *Service) HandleChangeExercise(w http.ResponseWriter, r *http.Request) {
+	var (
+		username = r.PathValue("username")
+		workout  = r.PathValue("workout")
+		exercise = r.PathValue("exercise")
+	)
+
+	l := s.logger.With("user", username, "workout", workout, "exercise", exercise)
+
+	wi, err := strconv.Atoi(workout)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	ei, err := strconv.Atoi(exercise)
+	if err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	defer r.Body.Close()
+	dec := json.NewDecoder(r.Body)
+
+	var patch Exercise
+	if err := dec.Decode(&patch); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+
+	var ex Exercise
+	switch {
+	case patch.Name != "":
+		ex, err = s.exercises.ChangeName(username, wi, ei, patch.Name)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+		fallthrough
+	case patch.Weight > 0:
+		ex, err = s.exercises.UpdateWeight(username, wi, ei, patch.Weight)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+		fallthrough
+	case patch.Repetitions > 0:
+		ex, err = s.exercises.UpdateRepetitions(username, wi, ei, patch.Repetitions)
+		if err != nil {
+			writeInternalError(l, w, err)
+			return
+		}
+	default:
+		writeInternalError(l, w, errors.New("nothing to update"))
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(ex); err != nil {
+		writeInternalError(l, w, err)
+		return
+	}
+}
+
+// HandleMoveUpExercise moves a workout exercise one position up
+// reducing the index with 1 but never lower than 1
+// requires {username}, {workout}, and {exercise} path variables
 func (s *Service) HandleMoveUpExercise(w http.ResponseWriter, r *http.Request) {
 	var (
 		username = r.PathValue("username")
@@ -224,6 +295,9 @@ func (s *Service) HandleMoveUpExercise(w http.ResponseWriter, r *http.Request) {
 	l.Debug("moved exercise up")
 }
 
+// HandleMoveDownExercise moves a workout exercise one position down
+// increasing the exercise index with 1 but never higher than the exercise count
+// requires {username}, {workout}, and {exercise} path variables
 func (s *Service) HandleMoveDownExercise(w http.ResponseWriter, r *http.Request) {
 	var (
 		username = r.PathValue("username")
@@ -267,6 +341,9 @@ func (s *Service) HandleMoveDownExercise(w http.ResponseWriter, r *http.Request)
 	l.Debug("moved exercise down")
 }
 
+// HandleSwapExercises swaps the index of the exercise with one provided
+// requires {username}, {workout}, and {exercise} path variables
+// requires json payload {"with": INDEX}
 func (s *Service) HandleSwapExercises(w http.ResponseWriter, r *http.Request) {
 	var (
 		username = r.PathValue("username")

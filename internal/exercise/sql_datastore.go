@@ -232,7 +232,7 @@ func (xs *SQLExercises) UpdateRepetitions(owner string, workout int, exercise in
 	const updateStmt = `
   UPDATE exercises
   SET repetitions = {{ .Repetitions }}
-  WHERE owner = {{ .Owner }} workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
+  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
   `
 	if owner == "" || workout <= 0 || exercise <= 0 || repetitions < 0 {
 		return Exercise{}, ErrInvalidFields

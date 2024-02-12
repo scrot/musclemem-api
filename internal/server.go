@@ -65,6 +65,7 @@ func (s *Server) Routes() http.Handler {
 	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises", s.exercises.HandleExercises)
 	router.HandleFunc("POST /users/{username}/workouts/{workout}/exercises", s.exercises.HandleNewExercise)
 	router.HandleFunc("GET /users/{username}/workouts/{workout}/exercises/{exercise}", s.exercises.HandleSingleExercise)
+	router.HandleFunc("PATCH /users/{username}/workouts/{workout}/exercises/{exercise}", s.exercises.HandleChangeExercise)
 	router.HandleFunc("PUT /users/{username}/workouts/{workout}/exercises/{exercise}/up", s.exercises.HandleMoveUpExercise)
 	router.HandleFunc("PUT /users/{username}/workouts/{workout}/exercises/{exercise}/down", s.exercises.HandleMoveDownExercise)
 	router.HandleFunc("POST /users/{username}/workouts/{workout}/exercises/{exercise}/swap", s.exercises.HandleSwapExercises)
