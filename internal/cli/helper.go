@@ -1,4 +1,4 @@
-package commands
+package cli
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func doJSON(method string, baseurl string, endpoint string, r io.Reader) (*http.Response, error) {
+func SendRequest(method string, baseurl string, endpoint string, r io.Reader) (*http.Response, error) {
 	if baseurl == "" {
 		return nil, errors.New("no base url provided")
 	}
@@ -39,12 +39,7 @@ func doJSON(method string, baseurl string, endpoint string, r io.Reader) (*http.
 	return resp, nil
 }
 
-func handleCLIError(err error) {
-	fmt.Printf("cli error: %s\n", err)
-	os.Exit(0)
-}
-
-func handleResponse(resp *http.Response, respErr error) {
+func HandleResponse(resp *http.Response, respErr error) {
 	if respErr != nil {
 		fmt.Printf("api error: %s\n", respErr)
 		os.Exit(0)
@@ -56,8 +51,8 @@ func handleResponse(resp *http.Response, respErr error) {
 	}
 }
 
-func newTable() *tablewriter.Table {
-	t := tablewriter.NewWriter(os.Stdout)
+func NewSimpleTable(c *CLIConfig) *tablewriter.Table {
+	t := tablewriter.NewWriter(c.Out)
 	t.SetBorder(false)
 	t.SetHeaderLine(false)
 	t.SetNoWhiteSpace(true)

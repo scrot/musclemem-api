@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -45,8 +44,7 @@ var removeExerciseCmd = &cobra.Command{
 
 		exercise, err := strconv.Atoi(args[0])
 		if err != nil {
-			fmt.Printf("arg (%s) is not a number\n", args[0])
-			os.Exit(1)
+			handleCLIError(err)
 		}
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d", username, workout, exercise)
@@ -65,8 +63,7 @@ var removeWorkoutCmd = &cobra.Command{
 
 		workout, err := strconv.Atoi(args[0])
 		if err != nil {
-			fmt.Printf("arg (%s) is not a number\n", args[0])
-			os.Exit(1)
+			handleCLIError(err)
 		}
 
 		endpoint := fmt.Sprintf("/users/%s/workouts/%d", username, workout)

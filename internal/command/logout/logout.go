@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,15 +23,13 @@ var logoutCmd = &cobra.Command{
 		}
 
 		if err := keyring.Delete(appname, viper.GetString("user")); err != nil {
-			fmt.Printf("deleting user from keyring: %s\n", err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 
 		username = ""
 		viper.Set("user", username)
 		if err := viper.WriteConfig(); err != nil {
-			fmt.Printf("updating configuration file: %s\n", err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 
 		fmt.Println("logged out")

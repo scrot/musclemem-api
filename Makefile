@@ -98,7 +98,12 @@ server/kill:
 ## cli/build: build the server
 .PHONY: cli/build
 cli/build: tidy
-	@go build -o=${OUTPUT_PATH}${CLI_BINARY} ${CLI_PACKAGE_PATH}
+	@go build \
+	  -ldflags="
+	    -X main.name=${CLI_BINARY}
+			-X main.version='$(shell git rev-parse --short HEAD)-snapshot'
+			-X main.date='$(shell date)'"\
+		-o=${OUTPUT_PATH}${CLI_BINARY} ${CLI_PACKAGE_PATH}
 
 ## cli/run: run the server locally
 .PHONY: cli/run

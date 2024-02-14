@@ -3,6 +3,7 @@ module github.com/scrot/musclemem-api
 go 1.22
 
 require (
+	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/VauntDev/tqla v0.0.1
 	github.com/caarlos0/env/v10 v10.0.0
 	github.com/go-playground/validator/v10 v10.17.0

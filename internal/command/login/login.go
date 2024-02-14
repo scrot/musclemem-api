@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,19 +30,17 @@ var loginCmd = &cobra.Command{
 	Args: cobra.NoArgs,
 	Run: func(_ *cobra.Command, _ []string) {
 		if viper.GetString("user") != "" {
-			fmt.Println("already logged-in, you need to logout first")
-			os.Exit(1)
+			err := fmt.Errorf("already logged-in, you need to logout first")
+			handleCLIError(err)
 		}
 
 		if err := keyring.Set(appname, username, password); err != nil {
-			fmt.Printf("storing credentials in keyring: %s", err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 
 		viper.Set("user", username)
 		if err := viper.WriteConfig(); err != nil {
-			fmt.Printf("updating configuration file: %s", err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 	},
 }
