@@ -4,52 +4,39 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"os"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	"github.com/scrot/musclemem-api/internal/user"
+	model "github.com/scrot/musclemem-api/internal/user"
 	"github.com/spf13/cobra"
 )
 
-type RegisterOpts struct {
+type RegisterOptions struct {
+	model.User
 	UserFilePath string
-
-	// TODO: add user without args?
-	Username, Email, Password string
 }
 
 func NewRegisterCmd(config *cli.CLIConfig) *cobra.Command {
-	opts := &RegisterOpts{}
+	opts := &RegisterOptions{}
 
-	registerCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "register",
 		Short: "Register a new user",
 		Long:  `Create a new musclemem user`,
 		Args:  cobra.NoArgs,
+		Example: heredoc.Doc(`
+    $ mm register --username anna --email anna@email.com --password passwd
+    `),
 		RunE: func(_ *cobra.Command, _ []string) error {
-			var (
-				err  error
-				data []byte
-			)
-
-			if opts.UserFilePath != "" {
-				data, err = os.ReadFile(opts.UserFilePath)
-				if err != nil {
-					return cli.NewCLIError(err)
-				}
+			user := model.User{
+				Username: opts.Username,
+				Email:    opts.Email,
+				Password: opts.Password,
 			}
 
-			if opts.Username != "" && opts.Email != "" && opts.Password != "" {
-				user := user.User{
-					Username: opts.Username,
-					Email:    opts.Email,
-					Password: opts.Password,
-				}
-
-				data, err = json.Marshal(user)
-				if err != nil {
-					return cli.NewCLIError(err)
-				}
+			data, err := json.Marshal(user)
+			if err != nil {
+				return cli.NewCLIError(err)
 			}
 
 			resp, err := cli.SendRequest(http.MethodPost, config.BaseURL, "/users", bytes.NewReader(data))
@@ -64,7 +51,7 @@ func NewRegisterCmd(config *cli.CLIConfig) *cobra.Command {
 			defer resp.Body.Close()
 			dec := json.NewDecoder(resp.Body)
 
-			var u user.User
+			var u model.User
 			if err = dec.Decode(&u); err != nil {
 				return cli.NewJSONError(err)
 			}
@@ -73,11 +60,10 @@ func NewRegisterCmd(config *cli.CLIConfig) *cobra.Command {
 		},
 	}
 
-	registerCmd.Flags().StringVarP(&opts.UserFilePath, "file", "f", "", "path to json file (required)")
-	registerCmd.Flags().StringVar(&opts.Username, "user", "", "username of user")
-	registerCmd.Flags().StringVar(&opts.Email, "email", "", "email address of user")
-	registerCmd.Flags().StringVar(&opts.Password, "password", "", "password of user")
-	registerCmd.MarkFlagsRequiredTogether("user", "email", "password")
+	cmd.Flags().StringVar(&opts.Username, "user", "", "username of user")
+	cmd.Flags().StringVar(&opts.Email, "email", "", "email address of user")
+	cmd.Flags().StringVar(&opts.Password, "password", "", "password of user")
+	cmd.MarkFlagsRequiredTogether("user", "email", "password")
 
-	return registerCmd
+	return cmd
 }

@@ -5,6 +5,13 @@ import (
 
 	"github.com/scrot/musclemem-api/internal/cli"
 	"github.com/scrot/musclemem-api/internal/command/add"
+	"github.com/scrot/musclemem-api/internal/command/edit"
+	"github.com/scrot/musclemem-api/internal/command/info"
+	"github.com/scrot/musclemem-api/internal/command/list"
+	"github.com/scrot/musclemem-api/internal/command/login"
+	"github.com/scrot/musclemem-api/internal/command/logout"
+	"github.com/scrot/musclemem-api/internal/command/register"
+	"github.com/scrot/musclemem-api/internal/command/remove"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/spf13/cobra"
@@ -36,6 +43,13 @@ func NewRootCmd(c *cli.CLIConfig) *cobra.Command {
 
 	cmd.AddCommand(
 		add.NewAddCmd(c),
+		remove.NewRemoveCmd(c),
+		list.NewListCmd(c),
+		edit.NewEditCmd(c),
+		login.NewLoginCmd(c),
+		logout.NewLogoutCmd(c),
+		register.NewRegisterCmd(c),
+		info.NewInfoCmd(c),
 	)
 
 	return cmd

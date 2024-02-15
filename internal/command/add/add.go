@@ -8,7 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewAddCmd is the cli command for adding resources
+type AddOptions struct{}
+
 func NewAddCmd(c *cli.CLIConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <command>",

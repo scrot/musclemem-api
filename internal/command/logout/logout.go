@@ -1,37 +1,42 @@
-package commands
+package logout
 
 import (
 	"fmt"
 
+	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/scrot/musclemem-api/internal/cli"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/zalando/go-keyring"
 )
 
-func init() {
-	rootCmd.AddCommand(logoutCmd)
-}
+func NewLogoutCmd(c *cli.CLIConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "logout",
+		Short: "Logout the current user",
+		Long: `Remove the credentials from the system 
+    and unbinds the user from the cli tool.`,
+		Example: heredoc.Doc(`
+    $ mm logout
+    `),
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if c.User == "" {
+				return fmt.Errorf("no user logged in")
+			}
 
-var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Logs out the current user",
-	Long:  `Remove the credentials of the logged in user`,
-	Run: func(_ *cobra.Command, _ []string) {
-		if viper.GetString("user") == "" {
-			fmt.Println("no user logged in")
-			return
-		}
+			if err := keyring.Delete(c.CLIName, c.User); err != nil {
+				return cli.NewCLIError(err)
+			}
 
-		if err := keyring.Delete(appname, viper.GetString("user")); err != nil {
-			handleCLIError(err)
-		}
+			viper.Set("user", "")
+			if err := viper.WriteConfig(); err != nil {
+				return cli.NewCLIError(err)
+			}
+			c.User = ""
 
-		username = ""
-		viper.Set("user", username)
-		if err := viper.WriteConfig(); err != nil {
-			handleCLIError(err)
-		}
+			return nil
+		},
+	}
 
-		fmt.Println("logged out")
-	},
+	return cmd
 }

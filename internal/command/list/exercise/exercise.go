@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type ListExerciseOption struct{}
+type ListExerciseOptions struct{}
 
 func ListExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 	cmd := &cobra.Command{

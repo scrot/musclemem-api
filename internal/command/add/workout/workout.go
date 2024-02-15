@@ -10,14 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type AddWorkoutOption struct {
+type AddWorkoutOptions struct {
 	FilePath string
 }
 
 // NewAddWorkoutCmd is the cli command for adding exercises to a user workout
 // it should only be used in combination with the NewAddCmd
 func NewAddWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
-	opts := AddWorkoutOption{}
+	opts := AddWorkoutOptions{}
 
 	cmd := &cobra.Command{
 		Use:     "workout",

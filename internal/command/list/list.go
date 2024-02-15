@@ -1,4 +1,4 @@
-package commands
+package list
 
 import (
 	"github.com/MakeNowJust/heredoc/v2"
@@ -7,6 +7,8 @@ import (
 	"github.com/scrot/musclemem-api/internal/command/list/workout"
 	"github.com/spf13/cobra"
 )
+
+type ListOptions struct{}
 
 func NewListCmd(c *cli.CLIConfig) *cobra.Command {
 	cmd := &cobra.Command{

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/scrot/musclemem-api/internal/cli"
@@ -15,8 +16,8 @@ var (
 	date    = ""
 )
 
+// TODO: init configuration file (baseurl, configpath)
 // TODO: list single exercise / workout using wi/ei?
-// TODO: refs to exercise like {user}/{workout}/{exercise}
 // TODO: make it possible to change config path
 // TODO: create a test for each command
 // TODO: see if build variables are loaded correctly
@@ -35,8 +36,11 @@ func mainRun() cli.ExitCode {
 		return cli.ExitError
 	}
 
+	config.BaseURL = "http://localhost:8080"
+
 	root := command.NewRootCmd(config)
 	if err := root.ExecuteContext(ctx); err != nil {
+		fmt.Println(err)
 		return cli.ExitError
 	}
 
