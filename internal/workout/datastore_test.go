@@ -15,7 +15,7 @@ func TestCreatingNewWorkout(t *testing.T) {
 
 	mock := storage.NewMockSqliteDatastore(t)
 	mock.WithUser(t, 1, "", "")
-	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
+	ws := workout.NewSQLWorkoutStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name        string
@@ -52,7 +52,7 @@ func TestWorkoutByID(t *testing.T) {
 	mock := storage.NewMockSqliteDatastore(t)
 	mock.WithUser(t, 1, "", "")
 	mock.WithWorkout(t, 1, 1, "")
-	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
+	ws := workout.NewSQLWorkoutStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name        string
@@ -96,7 +96,7 @@ func TestRetreivingWorkoutExercises(t *testing.T) {
 	e2 := exercise.Exercise{ID: 2, Workout: 1, Name: "w1e2", Weight: 100, Repetitions: 10, PreviousID: 1, NextID: 3}
 	e3 := exercise.Exercise{ID: 3, Workout: 1, Name: "w1e3", Weight: 100, Repetitions: 10, PreviousID: 2, NextID: 0}
 
-	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
+	ws := workout.NewSQLWorkoutStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name        string
@@ -130,7 +130,7 @@ func TestChangingName(t *testing.T) {
 	mock.WithUser(t, 1, "u1", "pwd")
 	mock.WithWorkout(t, 1, 1, "w1")
 
-	ws := workout.NewSQLWorkouts(mock.SqliteDatastore)
+	ws := workout.NewSQLWorkoutStore(mock.SqliteDatastore)
 
 	if err := ws.ChangeName(1, "NEW"); err != nil {
 		t.Fatalf("expected no error but got '%v'", err)

@@ -9,17 +9,17 @@ import (
 	"github.com/scrot/musclemem-api/internal/storage"
 )
 
-type SQLExercises struct {
+type SQLExerciseStore struct {
 	*storage.SqliteDatastore
 }
 
-func NewSQLExercises(db *storage.SqliteDatastore) *SQLExercises {
-	return &SQLExercises{db}
+func NewSQLExerciseStore(db *storage.SqliteDatastore) *SQLExerciseStore {
+	return &SQLExerciseStore{db}
 }
 
 // ExerciseByID returns an exercise from the database if exists
 // otherwise returns NotFound error
-func (xs *SQLExercises) ByID(owner string, workout int, exercise int) (Exercise, error) {
+func (xs *SQLExerciseStore) ByID(owner string, workout int, exercise int) (Exercise, error) {
 	const (
 		stmt = `
     SELECT owner, workout, exercise_index, name, weight, repetitions
@@ -61,7 +61,7 @@ func (xs *SQLExercises) ByID(owner string, workout int, exercise int) (Exercise,
 	return e, nil
 }
 
-func (xs *SQLExercises) ByWorkout(owner string, workout int) ([]Exercise, error) {
+func (xs *SQLExerciseStore) ByWorkout(owner string, workout int) ([]Exercise, error) {
 	const (
 		selectStmt = `
     SELECT owner, workout, exercise_index, name, weight, repetitions
@@ -113,7 +113,7 @@ func (xs *SQLExercises) ByWorkout(owner string, workout int) ([]Exercise, error)
 	return es, nil
 }
 
-func (xs *SQLExercises) New(owner string, workout int, name string, weight float64, repetitions int) (Exercise, error) {
+func (xs *SQLExerciseStore) New(owner string, workout int, name string, weight float64, repetitions int) (Exercise, error) {
 	const stmt = `
   INSERT INTO exercises (owner, workout, exercise_index, name, weight, repetitions)
   VALUES ({{ .Owner }}, {{ .Workout }}, {{ .Index }}, {{ .Name }}, {{ .Weight }}, {{ .Repetitions }})
@@ -158,7 +158,7 @@ func (xs *SQLExercises) New(owner string, workout int, name string, weight float
 	return ne, nil
 }
 
-func (xs *SQLExercises) ChangeName(owner string, workout int, exercise int, name string) (Exercise, error) {
+func (xs *SQLExerciseStore) ChangeName(owner string, workout int, exercise int, name string) (Exercise, error) {
 	const stmt = `
   UPDATE exercises
   SET name = {{ .Name }}
@@ -193,7 +193,7 @@ func (xs *SQLExercises) ChangeName(owner string, workout int, exercise int, name
 	return e, nil
 }
 
-func (xs *SQLExercises) UpdateWeight(owner string, workout int, exercise int, weight float64) (Exercise, error) {
+func (xs *SQLExerciseStore) UpdateWeight(owner string, workout int, exercise int, weight float64) (Exercise, error) {
 	const updateStmt = `
   UPDATE exercises
   SET weight = {{ .Weight }}
@@ -228,7 +228,7 @@ func (xs *SQLExercises) UpdateWeight(owner string, workout int, exercise int, we
 	return e, nil
 }
 
-func (xs *SQLExercises) UpdateRepetitions(owner string, workout int, exercise int, repetitions int) (Exercise, error) {
+func (xs *SQLExerciseStore) UpdateRepetitions(owner string, workout int, exercise int, repetitions int) (Exercise, error) {
 	const updateStmt = `
   UPDATE exercises
   SET repetitions = {{ .Repetitions }}
@@ -263,10 +263,10 @@ func (xs *SQLExercises) UpdateRepetitions(owner string, workout int, exercise in
 	return e, nil
 }
 
-func (xs *SQLExercises) Delete(owner string, workout int, exercise int) (Exercise, error) {
+func (xs *SQLExerciseStore) Delete(owner string, workout int, exercise int) (Exercise, error) {
 	const stmt = `
   DELETE FROM exercises
-  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Exercise }}
+  WHERE owner = {{ .Owner }} AND workout = {{ .Workout }} AND exercise_index = {{ .Index }}
   `
 
 	e, err := xs.ByID(owner, workout, exercise)
@@ -278,7 +278,11 @@ func (xs *SQLExercises) Delete(owner string, workout int, exercise int) (Exercis
 		return Exercise{}, fmt.Errorf("Delete: %w", ErrInvalidFields)
 	}
 
-	data := struct{ Workout, Index int }{workout, exercise}
+	data := struct {
+		Owner   string
+		Workout int
+		Index   int
+	}{owner, workout, exercise}
 	q, args, err := xs.CompileStatement(stmt, data)
 	if err != nil {
 		return Exercise{}, fmt.Errorf("Delete: compile: %w", err)
@@ -301,7 +305,7 @@ func (xs *SQLExercises) Delete(owner string, workout int, exercise int) (Exercis
 	return e, nil
 }
 
-func (xs *SQLExercises) Swap(owner string, workout int, e1 int, e2 int) error {
+func (xs *SQLExerciseStore) Swap(owner string, workout int, e1 int, e2 int) error {
 	const stmt = `
   UPDATE exercises
   SET exercise_index = {{ .NewIndex }}
@@ -384,17 +388,46 @@ func (xs *SQLExercises) Swap(owner string, workout int, e1 int, e2 int) error {
 	return nil
 }
 
+func (xs *SQLExerciseStore) Len(owner string, workout int) (int, error) {
+	const stmt = `
+  SELECT COUNT(*)
+  FROM exercises
+  WHERE owner = {{ .Owner }} AND workout = {{.Workout }}
+  `
+	data := struct {
+		Owner   string
+		Workout int
+	}{owner, workout}
+
+	q, args, err := xs.CompileStatement(stmt, data)
+	if err != nil {
+		return 0, fmt.Errorf("Len: compile: %w", err)
+	}
+
+	var count sql.NullInt32
+	err = xs.QueryRow(q, args...).Scan(&count)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("Len: query: %w", err)
+	}
+
+	if !count.Valid {
+		return 0, errors.New("not a valid number")
+	}
+
+	return int(count.Int32), nil
+}
+
 // lastIndex returns the last exercise index of a workout
 // if the index is 0 and no error, then there are no exercises
-func (xs *SQLExercises) lastIndex(owner string, workout int) (int, error) {
-	// TODO: handle NULL value if no exercises found
-	const (
-		stmt = `
+func (xs *SQLExerciseStore) lastIndex(owner string, workout int) (int, error) {
+	const stmt = `
     SELECT MAX(exercise_index)
     FROM exercises
     WHERE owner = {{ .Owner }} AND workout = {{.Workout }}
     `
-	)
 
 	data := struct {
 		Owner   string
@@ -422,7 +455,7 @@ func (xs *SQLExercises) lastIndex(owner string, workout int) (int, error) {
 	return int(index.Int32), nil
 }
 
-func (xs *SQLExercises) workoutExists(owner string, workout int) bool {
+func (xs *SQLExerciseStore) workoutExists(owner string, workout int) bool {
 	const stmt = `
   SELECT 1
   FROM workouts

@@ -95,14 +95,12 @@ server/kill:
 # CLI
 # ==================================================================================== #
 
+BVAR := cmd/cli/main
 ## cli/build: build the server
 .PHONY: cli/build
 cli/build: tidy
 	@go build \
-	  -ldflags="
-	    -X main.name=${CLI_BINARY}
-			-X main.version='$(shell git rev-parse --short HEAD)-snapshot'
-			-X main.date='$(shell date)'"\
+	  -ldflags="-X '${BVAR}.name=${CLI_BINARY}' -X '${BVAR}.version=$(shell git rev-parse --short HEAD)-snapshot' -X '${BVAR}.date=$(shell date)'"\
 		-o=${OUTPUT_PATH}${CLI_BINARY} ${CLI_PACKAGE_PATH}
 
 ## cli/run: run the server locally
@@ -115,11 +113,23 @@ cli/run: cli/build
 cli/init: cli/build
 	${OUTPUT_PATH}${CLI_BINARY} logout
 	${OUTPUT_PATH}${CLI_BINARY} register -f testdata/user.json
-	${OUTPUT_PATH}${CLI_BINARY} login -u $(shell jq -r '.username' ./testdata/user.json) -p $(shell jq -r '.password' ./testdata/user.json)
+	${OUTPUT_PATH}${CLI_BINARY} login \
+		--username $(shell jq -r '.username' testdata/user.json) \
+		--password $(shell jq -r '.password' testdata/user.json)
 	${OUTPUT_PATH}${CLI_BINARY} add wo -f testdata/workout.json
 	${OUTPUT_PATH}${CLI_BINARY} add wo -f testdata/workouts.json
 	${OUTPUT_PATH}${CLI_BINARY} add ex 1 -f testdata/exercise.json
 	${OUTPUT_PATH}${CLI_BINARY} add ex 1 -f testdata/exercises.json
+	${OUTPUT_PATH}${CLI_BINARY} move ex down 1/1
+	${OUTPUT_PATH}${CLI_BINARY} move ex up 1/2
+	${OUTPUT_PATH}${CLI_BINARY} move ex swap 1/1 1/2
+	${OUTPUT_PATH}${CLI_BINARY} edit ex 1/1 --name "CHANGED" --weight 999.9 --reps 9
+	${OUTPUT_PATH}${CLI_BINARY} edit wo 1 --name "CHANGED"
+	${OUTPUT_PATH}${CLI_BINARY} remove ex 1/2
+	${OUTPUT_PATH}${CLI_BINARY} remove wo 2
+	${OUTPUT_PATH}${CLI_BINARY} list ex 1
+	${OUTPUT_PATH}${CLI_BINARY} list wo
+
 
 ## cli/alias: creates a temporary alias to cli command
 .PHONY: cli/alias

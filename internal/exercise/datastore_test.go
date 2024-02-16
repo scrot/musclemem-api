@@ -19,7 +19,7 @@ func TestRetreiveExerciseWithID(t *testing.T) {
 	mock.WithWorkout(t, 1, 1, "")
 	mock.WithExercise(t, 1, 1, "e1", 100, 10, 0, 2)
 	mock.WithExercise(t, 2, 1, "e2", 100, 10, 1, 0)
-	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
+	xs := exercise.NewSQLExerciseStore(mock.SqliteDatastore)
 
 	e1 := exercise.Exercise{ID: 1, Workout: 1, Name: "e1", Weight: 100.0, Repetitions: 10, PreviousID: 0, NextID: 2}
 
@@ -55,7 +55,7 @@ func TestStoringNewExercise(t *testing.T) {
 	mock := storage.NewMockSqliteDatastore(t)
 	mock.WithUser(t, 1, "", "")
 	mock.WithWorkout(t, 1, 1, "")
-	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
+	xs := exercise.NewSQLExerciseStore(mock.SqliteDatastore)
 
 	e1 := exercise.Exercise{Workout: 1, Name: "e1", Weight: 80.0, Repetitions: 10}
 	e2 := exercise.Exercise{Workout: 1, Name: "e2", Weight: 80.0, Repetitions: 10}
@@ -124,7 +124,7 @@ func TestChangingExerciseName(t *testing.T) {
 	mock.WithUser(t, 1, "", "")
 	mock.WithWorkout(t, 1, 1, "")
 	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
-	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
+	xs := exercise.NewSQLExerciseStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name         string
@@ -161,7 +161,7 @@ func TestUpdatingWeight(t *testing.T) {
 	mock.WithUser(t, 1, "", "")
 	mock.WithWorkout(t, 1, 1, "")
 	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
-	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
+	xs := exercise.NewSQLExerciseStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name           string
@@ -198,7 +198,7 @@ func TestUpdateRepetitions(t *testing.T) {
 	mock.WithUser(t, 1, "", "")
 	mock.WithWorkout(t, 1, 1, "")
 	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
-	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
+	xs := exercise.NewSQLExerciseStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name                string
@@ -235,7 +235,7 @@ func TestDeletingExercise(t *testing.T) {
 	mock.WithUser(t, 1, "", "")
 	mock.WithWorkout(t, 1, 1, "")
 	mock.WithExercise(t, 1, 1, "", 0, 0, 0, 0)
-	xs := exercise.NewSQLExercises(mock.SqliteDatastore)
+	xs := exercise.NewSQLExerciseStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name           string

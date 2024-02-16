@@ -1,9 +1,10 @@
-package xhttp
+package apiutils
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 )
 
@@ -43,4 +44,14 @@ func RequestJSON(r *http.Request) ([]byte, TypeJSON, error) {
 	default:
 		return []byte{}, TypeJSONInvalid, nil
 	}
+}
+
+// WriteInternalError handles generic server errors logging the error and writing
+// the error response
+func WriteInternalError(l *slog.Logger, w http.ResponseWriter, err error, msg string) {
+	l.Error(err.Error())
+	if msg == "" {
+		msg = "Whoeps! something went wrong"
+	}
+	http.Error(w, msg, http.StatusInternalServerError)
 }

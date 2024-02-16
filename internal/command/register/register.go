@@ -3,16 +3,18 @@ package register
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"os"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	model "github.com/scrot/musclemem-api/internal/user"
+	"github.com/scrot/musclemem-api/internal/user"
 	"github.com/spf13/cobra"
 )
 
 type RegisterOptions struct {
-	model.User
+	user.User
 	UserFilePath string
 }
 
@@ -25,16 +27,34 @@ func NewRegisterCmd(config *cli.CLIConfig) *cobra.Command {
 		Long:  `Create a new musclemem user`,
 		Args:  cobra.NoArgs,
 		Example: heredoc.Doc(`
-    $ mm register --username anna --email anna@email.com --password passwd
+      $ mm register -f /path/to/user.json
+      $ mm register --username anna --email anna@email.com --password passwd
     `),
 		RunE: func(_ *cobra.Command, _ []string) error {
-			user := model.User{
-				Username: opts.Username,
-				Email:    opts.Email,
-				Password: opts.Password,
+			var u user.User
+			switch {
+			case opts.UserFilePath != "":
+				file, err := os.Open(opts.UserFilePath)
+				if err != nil {
+					return cli.NewCLIError(err)
+				}
+
+				dec := json.NewDecoder(file)
+				if err := dec.Decode(&u); err != nil {
+					return cli.NewJSONError(err)
+				}
+			case opts.Username != "" && opts.Password != "" && opts.Email != "":
+				u = user.User{
+					Username: opts.Username,
+					Email:    opts.Email,
+					Password: opts.Password,
+				}
+			default:
+				return cli.NewCLIError(errors.New("missing flags"))
+
 			}
 
-			data, err := json.Marshal(user)
+			data, err := json.Marshal(u)
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
@@ -45,14 +65,19 @@ func NewRegisterCmd(config *cli.CLIConfig) *cobra.Command {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp.StatusCode)
+				switch resp.StatusCode {
+				case http.StatusConflict:
+					return cli.NewAPIError(cli.ErrExists)
+				default:
+					return cli.NewAPIStatusError(resp)
+				}
 			}
 
 			defer resp.Body.Close()
 			dec := json.NewDecoder(resp.Body)
 
-			var u model.User
-			if err = dec.Decode(&u); err != nil {
+			var nu user.User
+			if err = dec.Decode(&nu); err != nil {
 				return cli.NewJSONError(err)
 			}
 
@@ -60,10 +85,13 @@ func NewRegisterCmd(config *cli.CLIConfig) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.Username, "user", "", "username of user")
+	cmd.Flags().StringVarP(&opts.UserFilePath, "file", "f", "", "path to json file")
+	cmd.Flags().StringVar(&opts.Username, "username", "", "username of user")
 	cmd.Flags().StringVar(&opts.Email, "email", "", "email address of user")
 	cmd.Flags().StringVar(&opts.Password, "password", "", "password of user")
-	cmd.MarkFlagsRequiredTogether("user", "email", "password")
+	cmd.MarkFlagsRequiredTogether("username", "email", "password")
+	cmd.MarkFlagsMutuallyExclusive("username", "file")
+	cmd.MarkFlagsOneRequired("username", "file")
 
 	return cmd
 }

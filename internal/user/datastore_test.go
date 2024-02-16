@@ -12,7 +12,7 @@ func TestRegisterUser(t *testing.T) {
 	t.Parallel()
 
 	mock := storage.NewMockSqliteDatastore(t)
-	us := user.NewSQLUsers(mock.SqliteDatastore)
+	us := user.NewSQLUserStore(mock.SqliteDatastore)
 
 	cs := []struct {
 		name          string

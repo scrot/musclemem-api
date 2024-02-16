@@ -4,8 +4,8 @@ import (
 	"errors"
 )
 
-// Users represents the user repository
-type Users interface {
+// UserStore represents the user repository
+type UserStore interface {
 	Storer
 	Retreiver
 }

@@ -1,8 +1,6 @@
 package logout
 
 import (
-	"fmt"
-
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
 	"github.com/spf13/cobra"
@@ -17,11 +15,11 @@ func NewLogoutCmd(c *cli.CLIConfig) *cobra.Command {
 		Long: `Remove the credentials from the system 
     and unbinds the user from the cli tool.`,
 		Example: heredoc.Doc(`
-    $ mm logout
+      $ mm logout
     `),
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if c.User == "" {
-				return fmt.Errorf("no user logged in")
+				return cli.NewCLIError(cli.ErrAuth)
 			}
 
 			if err := keyring.Delete(c.CLIName, c.User); err != nil {

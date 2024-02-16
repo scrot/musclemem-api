@@ -30,7 +30,7 @@ func NewAddWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 
       # add multiple workouts from json file
       $ mm add workout -f path/to/workouts.json
-      `),
+    `),
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			file, err := os.Open(opts.FilePath)
@@ -46,7 +46,7 @@ func NewAddWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp.StatusCode)
+				return cli.NewAPIStatusError(resp)
 			}
 
 			return nil

@@ -13,9 +13,7 @@ var (
 	ErrInvalidFields = errors.New("contains invalid fields")
 )
 
-// Implementation of Exercises provide the means to persist
-// exercises in a repository
-type Exercises interface {
+type ExerciseStore interface {
 	Retreiver
 	Storer
 	Updater
@@ -29,7 +27,7 @@ type Retreiver interface {
 	// from the exercises repository if it exists
 	ByID(owner string, workout int, exercise int) (Exercise, error)
 
-	// ByWorkout
+	// ByWorkout returns all exercises belongign to an user's workout
 	ByWorkout(owner string, workout int) ([]Exercise, error)
 }
 
@@ -63,4 +61,7 @@ type Orderer interface {
 	// Swap swaps the indices from the given exercises
 	// if the workout or index doesn't exist it returns an error
 	Swap(owner string, workout int, e1 int, e2 int) error
+
+	// Len returns the length of all exercises of a workout
+	Len(owner string, workout int) (int, error)
 }

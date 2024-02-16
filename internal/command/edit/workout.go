@@ -27,7 +27,7 @@ func NewEditWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 		Long: `Edit a existing workout belonging to a user,
     The workout must exist and the user must be logged-in.`,
 		Example: heredoc.Doc(`
-    $ mm edit workout 1 --name "Full-body workout"
+      $ mm edit workout 1 --name "Full-body workout"
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -36,7 +36,7 @@ func NewEditWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 
 			var wi int
-			_, err := fmt.Sscanf(args[0], "%d", wi)
+			_, err := fmt.Sscanf(args[0], "%d", &wi)
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
@@ -54,7 +54,7 @@ func NewEditWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp.StatusCode)
+				return cli.NewAPIStatusError(resp)
 			}
 
 			return nil

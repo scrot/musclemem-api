@@ -32,7 +32,7 @@ func NewAddExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 
       # add multiple exercises from json file
       $ mm add exercise 1 -f path/to/exercises.json
-      `),
+    `),
 		RunE: func(_ *cobra.Command, args []string) error {
 			file, err := os.Open(opts.FilePath)
 			if err != nil {
@@ -52,7 +52,7 @@ func NewAddExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp.StatusCode)
+				return cli.NewAPIStatusError(resp)
 			}
 
 			return nil

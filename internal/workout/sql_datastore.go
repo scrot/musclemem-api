@@ -8,15 +8,15 @@ import (
 	"github.com/scrot/musclemem-api/internal/storage"
 )
 
-type SQLWorkouts struct {
+type SQLWorkoutStore struct {
 	*storage.SqliteDatastore
 }
 
-func NewSQLWorkouts(db *storage.SqliteDatastore) *SQLWorkouts {
-	return &SQLWorkouts{db}
+func NewSQLWorkoutStore(db *storage.SqliteDatastore) *SQLWorkoutStore {
+	return &SQLWorkoutStore{db}
 }
 
-func (ws *SQLWorkouts) New(owner string, name string) (Workout, error) {
+func (ws *SQLWorkoutStore) New(owner string, name string) (Workout, error) {
 	const stmt = `
     INSERT INTO workouts (owner, workout_index, name)
     VALUES ({{ .Owner }}, {{ .Index }}, {{ .Name }})
@@ -53,7 +53,7 @@ func (ws *SQLWorkouts) New(owner string, name string) (Workout, error) {
 	return workout, nil
 }
 
-func (ws *SQLWorkouts) Delete(owner string, workout int) (Workout, error) {
+func (ws *SQLWorkoutStore) Delete(owner string, workout int) (Workout, error) {
 	const (
 		stmt = `
     DELETE FROM workouts
@@ -127,7 +127,7 @@ func (ws *SQLWorkouts) Delete(owner string, workout int) (Workout, error) {
 	return wo, nil
 }
 
-func (ws *SQLWorkouts) ByID(owner string, workout int) (Workout, error) {
+func (ws *SQLWorkoutStore) ByID(owner string, workout int) (Workout, error) {
 	const stmt = `
   SELECT owner, workout_index, name
   FROM workouts
@@ -159,7 +159,7 @@ func (ws *SQLWorkouts) ByID(owner string, workout int) (Workout, error) {
 	return w, nil
 }
 
-func (ws *SQLWorkouts) ByOwner(owner string) ([]Workout, error) {
+func (ws *SQLWorkoutStore) ByOwner(owner string) ([]Workout, error) {
 	const stmt = `
   SELECT owner, workout_index, name
   FROM workouts
@@ -195,7 +195,7 @@ func (ws *SQLWorkouts) ByOwner(owner string) ([]Workout, error) {
 	return wos, nil
 }
 
-func (ws *SQLWorkouts) ChangeName(owner string, workout int, name string) (Workout, error) {
+func (ws *SQLWorkoutStore) ChangeName(owner string, workout int, name string) (Workout, error) {
 	const stmt = `
   UPDATE workouts
   SET name = {{ .Name }}
@@ -235,7 +235,7 @@ func (ws *SQLWorkouts) ChangeName(owner string, workout int, name string) (Worko
 
 // lastIndex returns the last workout index of a user
 // if the index is 0 and no error, then there are no workouts
-func (xs *SQLWorkouts) lastIndex(owner string) (int, error) {
+func (xs *SQLWorkoutStore) lastIndex(owner string) (int, error) {
 	const (
 		lastIndexStmt = `
     SELECT MAX(workout_index)
@@ -266,7 +266,7 @@ func (xs *SQLWorkouts) lastIndex(owner string) (int, error) {
 	return int(index.Int32), nil
 }
 
-func (ws *SQLWorkouts) userExists(username string) bool {
+func (ws *SQLWorkoutStore) userExists(username string) bool {
 	const stmt = `
   SELECT 1
   FROM users

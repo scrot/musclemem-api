@@ -9,11 +9,10 @@ var (
 	ErrInvalidFields = errors.New("contains invalid fields")
 )
 
-// Workouts implementations allow for interaction with the
-// workouts datastore
-type Workouts interface {
+type WorkoutStore interface {
 	Retreiver
 	Storer
+	Updater
 	Deleter
 }
 
@@ -32,7 +31,10 @@ type Retreiver interface {
 type Storer interface {
 	// New creates a new workout for the given owner
 	New(owner string, name string) (Workout, error)
+}
 
+// Updater implementations allow for existing workouts to be created
+type Updater interface {
 	// ChangeName updates the name of an existing workout
 	ChangeName(owner string, workout int, name string) (Workout, error)
 }

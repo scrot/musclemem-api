@@ -13,11 +13,11 @@ func NewAddCmd(c *cli.CLIConfig) *cobra.Command {
 		Use:   "add <command>",
 		Short: "Add resource",
 		Long: `Allows the creation of new user workouts
-  and new workout exercises`,
+    and new workout exercises`,
 		Example: heredoc.Doc(`
       $ mm add workout -f example/workouts.json
       $ mm add exercise 1 -f example/file.json
-      `),
+    `),
 	}
 
 	cmd.AddCommand(

@@ -9,6 +9,7 @@ import (
 	"github.com/scrot/musclemem-api/internal/command/list"
 	"github.com/scrot/musclemem-api/internal/command/login"
 	"github.com/scrot/musclemem-api/internal/command/logout"
+	"github.com/scrot/musclemem-api/internal/command/move"
 	"github.com/scrot/musclemem-api/internal/command/register"
 	"github.com/scrot/musclemem-api/internal/command/remove"
 
@@ -38,6 +39,7 @@ func NewRootCmd(c *cli.CLIConfig) *cobra.Command {
 		remove.NewRemoveCmd(c),
 		list.NewListCmd(c),
 		edit.NewEditCmd(c),
+		move.NewMoveCmd(c),
 		login.NewLoginCmd(c),
 		logout.NewLogoutCmd(c),
 		register.NewRegisterCmd(c),

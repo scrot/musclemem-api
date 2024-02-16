@@ -18,12 +18,12 @@ func NewRemoveExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 		Short:   "Remove an exercise",
 		Long:    `Remove an exercise from a workout of a user, the user must be logged-in`,
 		Example: heredoc.Doc(`
-    $ mm remove exercise 1/2
+      $ mm remove exercise 1/2
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			var wi, ei int
-			_, err := fmt.Sscanf(args[0], "%d/%d", wi, ei)
+			_, err := fmt.Sscanf(args[0], "%d/%d", &wi, &ei)
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
@@ -35,7 +35,7 @@ func NewRemoveExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp.StatusCode)
+				return cli.NewAPIStatusError(resp)
 			}
 
 			return nil

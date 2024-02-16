@@ -18,11 +18,8 @@ func NewEditCmd(c *cli.CLIConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		NewEditExerciseCmd(c),
-		NewEditExerciseDownCmd(c),
-		NewEditExerciseUpCmd(c),
-		NewEditExerciseSwapCmd(c),
 		NewEditWorkoutCmd(c),
+		NewEditExerciseCmd(c),
 	)
 
 	return cmd

@@ -23,7 +23,7 @@ func ListExerciseCmd(c *cli.CLIConfig) *cobra.Command {
     only exercises can be listed that belongs to a workout
     of the logged-in user`,
 		Example: heredoc.Doc(`
-      $ mm list exercise 1
+    $ mm list exercise 1
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -39,7 +39,7 @@ func ListExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp.StatusCode)
+				return cli.NewAPIStatusError(resp)
 			}
 
 			defer resp.Body.Close()

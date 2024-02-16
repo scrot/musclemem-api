@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"errors"
+	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path"
 
@@ -48,28 +47,8 @@ type CLIConfig struct {
 
 // NewCLIConfig creates a new CLIConfig
 func NewCLIConfig(name, version, author, date string) (*CLIConfig, error) {
-	home, err := homedir.Dir()
-	if err != nil {
-		return nil, err
-	}
-	configfile := path.Join(home, "."+name, "config.yaml")
-
-	// create new configfile if needed
-	if _, err := os.Stat(configfile); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			if err := os.Mkdir(path.Dir(configfile), os.ModePerm); err != nil {
-				return nil, err
-			}
-			if _, err := os.Create(configfile); err != nil {
-				return nil, err
-			}
-
-		} else {
-			return nil, err
-		}
-	}
-
-	viper.SetConfigFile(configfile)
+	configpath := DefaultConfigPath(name)
+	viper.SetConfigFile(configpath)
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err
 	}
@@ -80,8 +59,6 @@ func NewCLIConfig(name, version, author, date string) (*CLIConfig, error) {
 		CLIDate:    date,
 		CLIName:    name,
 
-		CLIConfigPath: configfile,
-
 		User:    viper.GetString("user"),
 		BaseURL: viper.GetString("baseurl"),
 
@@ -90,6 +67,16 @@ func NewCLIConfig(name, version, author, date string) (*CLIConfig, error) {
 	}
 
 	return config, nil
+}
+
+func DefaultConfigPath(appname string) string {
+	home, err := homedir.Dir()
+	if err != nil {
+		fmt.Println(NewCLIError(err))
+		os.Exit(1)
+	}
+	configfile := path.Join(home, "."+appname, "config.yaml")
+	return configfile
 }
 
 func (c *CLIConfig) UserPassword() (string, error) {

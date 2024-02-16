@@ -27,7 +27,7 @@ func NewLoginCmd(c *cli.CLIConfig) *cobra.Command {
 		Long: `Binds the cli tool to a specific user, all
   all subsequent actions will be done as if by the user`,
 		Example: heredoc.Doc(`
-    $ mm login --username anne@email.com --password passwd
+      $ mm login --username anne@email.com --password passwd
     `),
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {

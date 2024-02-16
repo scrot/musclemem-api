@@ -6,15 +6,15 @@ import (
 	"github.com/scrot/musclemem-api/internal/storage"
 )
 
-type SQLUsers struct {
+type SQLUserStore struct {
 	*storage.SqliteDatastore
 }
 
-func NewSQLUsers(ds *storage.SqliteDatastore) Users {
-	return &SQLUsers{ds}
+func NewSQLUserStore(ds *storage.SqliteDatastore) UserStore {
+	return &SQLUserStore{ds}
 }
 
-func (us *SQLUsers) New(username, email, password string) (User, error) {
+func (us *SQLUserStore) New(username, email, password string) (User, error) {
 	const stmt = `
   INSERT INTO users (username, email, password)
   VALUES ({{ .Username}}, {{ .Email }}, {{ .Password }})
@@ -42,7 +42,7 @@ func (us *SQLUsers) New(username, email, password string) (User, error) {
 	return u, nil
 }
 
-func (us *SQLUsers) ByUsername(username string) (User, error) {
+func (us *SQLUserStore) ByUsername(username string) (User, error) {
 	const stmt = `
   SELECT username, email, password
   FROM users

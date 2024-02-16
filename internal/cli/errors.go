@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -15,6 +17,13 @@ const (
 	ExitCancel  ExitCode = 2
 	ExitAuth    ExitCode = 4
 	ExitPending ExitCode = 8
+)
+
+// ErrExists indicates the resource to be added already exists
+// the ExitCode should be ExitOK to not terminate batch execution
+var (
+	ErrExists = errors.New("resource already exists")
+	ErrAuth   = errors.New("requires logged-in user")
 )
 
 // NewCLIError standardises the error text, representing a cli error
@@ -32,7 +41,13 @@ func NewAPIError(err error) error {
 	return fmt.Errorf("api error: %w", err)
 }
 
-// NewAPIStatusError creates an error out of a status code, representing an api error
-func NewAPIStatusError(code int) error {
-	return fmt.Errorf("api error: %s", http.StatusText(code))
+// NewAPIStatusError standardises the error text, representing an api error
+// the error messages in the response body is parsed and wrapped in the error
+func NewAPIStatusError(resp *http.Response) error {
+	defer resp.Body.Close()
+	msg, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return NewAPIError(err)
+	}
+	return fmt.Errorf("api error: %w", errors.New(string(msg)))
 }

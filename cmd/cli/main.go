@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -36,12 +37,19 @@ func mainRun() cli.ExitCode {
 		return cli.ExitError
 	}
 
-	config.BaseURL = "http://localhost:8080"
-
 	root := command.NewRootCmd(config)
 	if err := root.ExecuteContext(ctx); err != nil {
-		fmt.Println(err)
-		return cli.ExitError
+		switch {
+		case errors.Is(err, cli.ErrAuth):
+			fmt.Println(err)
+			return cli.ExitOK
+		case errors.Is(err, cli.ErrExists):
+			fmt.Println(err)
+			return cli.ExitOK
+		default:
+			fmt.Println(err)
+			return cli.ExitError
+		}
 	}
 
 	return cli.ExitOK
