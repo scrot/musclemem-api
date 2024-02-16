@@ -1,4 +1,4 @@
-package exercise
+package remove
 
 import (
 	"fmt"
@@ -9,26 +9,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type RemoveExerciseOptions struct{}
+type RemoveWorkoutOptions struct{}
 
-func NewRemoveExerciseCmd(c *cli.CLIConfig) *cobra.Command {
+func NewRemoveWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "exercise <workout-index>/<exercise-index>",
-		Aliases: []string{"ex"},
-		Short:   "Remove an exercise",
-		Long:    `Remove an exercise from a workout of a user, the user must be logged-in`,
+		Use:     "workout <workout-index>",
+		Aliases: []string{"wo"},
+		Short:   "Remove a workout",
+		Long:    `Remove a workout, the user must be logged-in`,
 		Example: heredoc.Doc(`
-    $ mm remove exercise 1/2
+    $ mm remove workout 1
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			var wi, ei int
-			_, err := fmt.Sscanf(args[0], "%d/%d", wi, ei)
+			var wi int
+			_, err := fmt.Sscanf(args[0], "%d", wi)
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d", c.User, wi, ei)
+			endpoint := fmt.Sprintf("/users/%s/workouts/%d", c.User, wi)
 			resp, err := cli.SendRequest(http.MethodDelete, c.BaseURL, endpoint, nil)
 			if err != nil {
 				return cli.NewAPIError(err)

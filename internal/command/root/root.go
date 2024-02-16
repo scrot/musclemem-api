@@ -1,12 +1,11 @@
 package command
 
 import (
-	"fmt"
-
 	"github.com/scrot/musclemem-api/internal/cli"
 	"github.com/scrot/musclemem-api/internal/command/add"
 	"github.com/scrot/musclemem-api/internal/command/edit"
 	"github.com/scrot/musclemem-api/internal/command/info"
+	ini "github.com/scrot/musclemem-api/internal/command/init"
 	"github.com/scrot/musclemem-api/internal/command/list"
 	"github.com/scrot/musclemem-api/internal/command/login"
 	"github.com/scrot/musclemem-api/internal/command/logout"
@@ -17,13 +16,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type RootOptions struct {
-	ConfigPath string
-}
+type RootOptions struct{}
 
 func NewRootCmd(c *cli.CLIConfig) *cobra.Command {
-	opts := RootOptions{}
-
 	cmd := &cobra.Command{
 		Use:   c.CLIName,
 		Short: "A cli tool for interacting with the musclemem-api",
@@ -38,9 +33,6 @@ func NewRootCmd(c *cli.CLIConfig) *cobra.Command {
 		Args: cobra.NoArgs,
 	}
 
-	description := fmt.Sprintf("config file (default is %s)", c.CLIConfigPath)
-	cmd.PersistentFlags().StringVar(&opts.ConfigPath, "config", "", description)
-
 	cmd.AddCommand(
 		add.NewAddCmd(c),
 		remove.NewRemoveCmd(c),
@@ -50,6 +42,7 @@ func NewRootCmd(c *cli.CLIConfig) *cobra.Command {
 		logout.NewLogoutCmd(c),
 		register.NewRegisterCmd(c),
 		info.NewInfoCmd(c),
+		ini.NewInitCmd(c),
 	)
 
 	return cmd

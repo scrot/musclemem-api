@@ -2,8 +2,6 @@ package remove
 
 import (
 	"github.com/scrot/musclemem-api/internal/cli"
-	"github.com/scrot/musclemem-api/internal/command/remove/exercise"
-	"github.com/scrot/musclemem-api/internal/command/remove/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +17,8 @@ func NewRemoveCmd(c *cli.CLIConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		exercise.NewRemoveExerciseCmd(c),
-		workout.NewRemoveWorkoutCmd(c),
+		NewRemoveExerciseCmd(c),
+		NewRemoveWorkoutCmd(c),
 	)
 
 	return cmd

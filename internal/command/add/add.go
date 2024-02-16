@@ -3,8 +3,6 @@ package add
 import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	"github.com/scrot/musclemem-api/internal/command/add/exercise"
-	"github.com/scrot/musclemem-api/internal/command/add/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -23,8 +21,8 @@ func NewAddCmd(c *cli.CLIConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		exercise.NewAddExerciseCmd(c),
-		workout.NewAddWorkoutCmd(c),
+		NewAddExerciseCmd(c),
+		NewAddWorkoutCmd(c),
 	)
 
 	return cmd

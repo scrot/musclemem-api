@@ -1,4 +1,4 @@
-package workout
+package edit
 
 import (
 	"bytes"
@@ -9,12 +9,12 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	model "github.com/scrot/musclemem-api/internal/workout"
+	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
 )
 
 type EditWorkoutOptions struct {
-	model.Workout
+	workout.Workout
 }
 
 func NewEditWorkoutCmd(c *cli.CLIConfig) *cobra.Command {

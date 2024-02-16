@@ -1,4 +1,4 @@
-package workout
+package list
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	model "github.com/scrot/musclemem-api/internal/workout"
+	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -38,25 +38,21 @@ func ListWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 			defer resp.Body.Close()
 			dec := json.NewDecoder(resp.Body)
 
-			var ws []model.Workout
+			var ws []workout.Workout
 			if err := dec.Decode(&ws); err != nil {
 				return cli.NewJSONError(err)
 			}
 
-			printTable(c, ws)
+			t := cli.NewSimpleTable(c)
+			t.SetHeader([]string{"INDEX", "NAME"})
+			for _, w := range ws {
+				t.Append([]string{strconv.Itoa(w.Index), w.Name})
+			}
+			t.Render()
 
 			return nil
 		},
 	}
 
 	return cmd
-}
-
-func printTable(c *cli.CLIConfig, ws []model.Workout) {
-	t := cli.NewSimpleTable(c)
-	t.SetHeader([]string{"INDEX", "NAME"})
-	for _, w := range ws {
-		t.Append([]string{strconv.Itoa(w.Index), w.Name})
-	}
-	t.Render()
 }

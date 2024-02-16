@@ -1,4 +1,4 @@
-package exercise
+package list
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	model "github.com/scrot/musclemem-api/internal/exercise"
+	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/spf13/cobra"
 )
 
@@ -45,29 +45,25 @@ func ListExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 			defer resp.Body.Close()
 			dec := json.NewDecoder(resp.Body)
 
-			var xs []model.Exercise
+			var xs []exercise.Exercise
 			if err := dec.Decode(&xs); err != nil {
 				return cli.NewAPIError(err)
 			}
 
-			printTable(c, xs)
+			t := cli.NewSimpleTable(c)
+			t.SetHeader([]string{"#", "NAME", "WEIGHT", "REPS"})
+			for i, x := range xs {
+				t.Append([]string{
+					fmt.Sprintf("%d", i+1),
+					x.Name,
+					fmt.Sprintf("%.1f", x.Weight),
+					fmt.Sprintf("%d", x.Repetitions),
+				})
+			}
+			t.Render()
 
 			return nil
 		},
 	}
 	return cmd
-}
-
-func printTable(c *cli.CLIConfig, xs []model.Exercise) {
-	t := cli.NewSimpleTable(c)
-	t.SetHeader([]string{"#", "NAME", "WEIGHT", "REPS"})
-	for i, x := range xs {
-		t.Append([]string{
-			fmt.Sprintf("%d", i+1),
-			x.Name,
-			fmt.Sprintf("%.1f", x.Weight),
-			fmt.Sprintf("%d", x.Repetitions),
-		})
-	}
-	t.Render()
 }

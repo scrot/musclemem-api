@@ -2,8 +2,6 @@ package edit
 
 import (
 	"github.com/scrot/musclemem-api/internal/cli"
-	"github.com/scrot/musclemem-api/internal/command/edit/exercise"
-	"github.com/scrot/musclemem-api/internal/command/edit/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -20,11 +18,11 @@ func NewEditCmd(c *cli.CLIConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		exercise.NewEditExerciseCmd(c),
-		exercise.NewEditExerciseDownCmd(c),
-		exercise.NewEditExerciseUpCmd(c),
-		exercise.NewEditExerciseSwapCmd(c),
-		workout.NewEditWorkoutCmd(c),
+		NewEditExerciseCmd(c),
+		NewEditExerciseDownCmd(c),
+		NewEditExerciseUpCmd(c),
+		NewEditExerciseSwapCmd(c),
+		NewEditWorkoutCmd(c),
 	)
 
 	return cmd
