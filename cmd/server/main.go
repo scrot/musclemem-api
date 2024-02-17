@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,31 +29,38 @@ type Env struct {
 	Environment string `env:"ENVIRONMENT" envDefault:"development"`
 }
 
+// TODO: return different ExitCodes (also for cancel)
 func main() {
-	// TODO: create good main / run seperation with args
-	// return proper ExitCode
-	run()
+	if _, err := maxprocs.Set(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	if err := run(ctx, os.Stdout, os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
 }
 
-func run() {
+func run(ctx context.Context, _ io.Writer, _ []string) error {
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
+
 	// load environment variables
-	var vs Env
-	if err := env.Parse(&vs); err != nil {
+	var environment Env
+	if err := env.Parse(&environment); err != nil {
 		os.Exit(1)
 	}
 
 	// set logger with colour
 	var opts tint.Options
-	if vs.Environment == "development" {
+	if environment.Environment == "development" {
 		opts.Level = slog.LevelDebug
 	}
 	l := slog.New(tint.NewHandler(os.Stdout, &opts)).With("version", version)
 
 	// adhere container quota for cores if set
-	if _, err := maxprocs.Set(); err != nil {
-		l.Error(err.Error())
-		os.Exit(1)
-	}
 	procs := runtime.GOMAXPROCS(0)
 
 	dbConfig := storage.DefaultSqliteConfig
@@ -72,46 +81,54 @@ func run() {
 	}
 
 	httpServer := &http.Server{
-		Addr:         vs.URL,
+		Addr:         environment.URL,
 		Handler:      server,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
-	ctx := context.Background()
-
-	// TODO: make pretty with graceful shutdown etc
-	l.Info("starting api server", "addr", vs.URL, "cores", procs, "env", vs.Environment)
-
+	// run server in its own goroutine
 	go func() {
+		l.Info("server started listening", "addr", environment.URL, "cores", procs, "env", environment.Environment)
 		if err := httpServer.ListenAndServe(); err != nil {
 			switch err {
 			case http.ErrServerClosed:
-				l.Info("api server stopped listening to new requests")
+				l.Info("server stopped listening to new requests")
 			default:
-				l.Error(err.Error())
+				l.Error(fmt.Sprintf("unexpected error while listening: %s", err))
 			}
 		}
 	}()
 
-	// block till termination signal is received
-	shutdown := make(chan os.Signal, 1)
-	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
-	<-shutdown
+	// graceful shutdown on terminate signal
+	go func() {
+		kill := make(chan os.Signal, 1)
+		signal.Notify(kill, syscall.SIGINT, syscall.SIGTERM)
+		<-kill
+		cancel()
+	}()
 
-	// shutdown server or kill server after timeout expires
-	d, err := time.ParseDuration("3s")
-	if err != nil {
-		l.Error(err.Error())
-		os.Exit(1)
-	}
+	// graceful shutdown pattern adopted from Mat Ryer
+	// shuts down the server if context get's canceled
+	done := make(chan struct{}, 1)
 
-	l.Info("server is gracefully shutting down", "timeout", d)
-	ctx, cancel := context.WithTimeout(ctx, d)
-	if err := httpServer.Shutdown(ctx); err != nil {
-		l.Error(err.Error())
-		os.Exit(1)
-	}
-	cancel()
+	go func() {
+		<-ctx.Done()
+		// new context required since ctx is already canceled
+		shutdownCtx := context.Background()
+		shutdownCtx, cancel = context.WithTimeout(shutdownCtx, 3*time.Second)
+		defer cancel()
+
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			l.Error(fmt.Sprintf("error shutting down http server: %s", err))
+			os.Exit(1)
+		}
+		l.Info("server gracefully shutdown, till next time!")
+		done <- struct{}{}
+	}()
+
+	<-done
+
+	return nil
 }
