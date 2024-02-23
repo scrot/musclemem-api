@@ -1,11 +1,8 @@
 package edit
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
-	"fmt"
-	"net/http"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
@@ -39,26 +36,15 @@ func NewEditExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 				return cli.NewCLIError(errors.New("missing flags"))
 			}
 
-			var wi, ei int
-			_, err := fmt.Sscanf(args[0], "%d/%d", &wi, &ei)
+			ref, err := exercise.ParseRef(c.User + "/" + args[0])
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			payload, err := json.Marshal(&opts.Exercise)
-			if err != nil {
-				return cli.NewJSONError(err)
-			}
+			patch := opts.Exercise
 
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d", c.User, wi, ei)
-
-			resp, error := cli.SendRequest("PATCH", c.BaseURL, endpoint, bytes.NewReader(payload))
-			if error != nil {
+			if _, _, err := c.Exercises.Update(context.TODO(), ref, patch); err != nil {
 				return cli.NewAPIError(err)
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
 			}
 
 			return nil

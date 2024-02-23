@@ -1,13 +1,11 @@
 package move
 
 import (
-	"errors"
-	"fmt"
-	"net/http"
-	"strings"
+	"context"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
+	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/spf13/cobra"
 )
 
@@ -25,8 +23,8 @@ func NewMoveExerciseCmd(c *cli.CLIConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		NewMoveExerciseUpCmd(c),
 		NewMoveExerciseDownCmd(c),
+		NewMoveExerciseUpCmd(c),
 		NewMoveExerciseSwapCmd(c),
 	)
 
@@ -44,21 +42,12 @@ func NewMoveExerciseDownCmd(c *cli.CLIConfig) *cobra.Command {
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			var wi, ei int
-			_, err := fmt.Sscanf(args[0], "%d/%d", &wi, &ei)
+			ref, err := exercise.ParseRef(c.User + "/" + args[0])
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d/down", c.User, wi, ei)
-			resp, err := cli.SendRequest(http.MethodPut, c.BaseURL, endpoint, nil)
-			if err != nil {
-				return cli.NewAPIError(err)
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
-			}
+			c.Exercises.Move(context.TODO(), ref, exercise.MoveDown, nil)
 
 			return nil
 		},
@@ -78,21 +67,12 @@ func NewMoveExerciseUpCmd(c *cli.CLIConfig) *cobra.Command {
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			var wi, ei int
-			_, err := fmt.Sscanf(args[0], "%d/%d", &wi, &ei)
+			ref, err := exercise.ParseRef(c.User + "/" + args[0])
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d/up", c.User, wi, ei)
-			resp, err := cli.SendRequest(http.MethodPut, c.BaseURL, endpoint, nil)
-			if err != nil {
-				return cli.NewAPIError(err)
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
-			}
+			c.Exercises.Move(context.TODO(), ref, exercise.MoveUp, nil)
 
 			return nil
 		},
@@ -113,30 +93,18 @@ func NewMoveExerciseSwapCmd(c *cli.CLIConfig) *cobra.Command {
     `),
 		Args: cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
-			var wi1, ei1 int
-			if _, err := fmt.Sscanf(args[0], "%d/%d", &wi1, &ei1); err != nil {
-				return cli.NewCLIError(err)
-			}
-
-			var wi2, ei2 int
-			if _, err := fmt.Sscanf(args[1], "%d/%d", &wi2, &ei2); err != nil {
-				return cli.NewCLIError(err)
-			}
-
-			if wi1 != wi2 {
-				return cli.NewCLIError(errors.New("excercises not of same workout"))
-			}
-
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises/%d/swap", c.User, wi1, ei1)
-			body := strings.NewReader(fmt.Sprintf("{%q: %d}", "with", ei2))
-
-			resp, err := cli.SendRequest(http.MethodPost, c.BaseURL, endpoint, body)
+			ref, err := exercise.ParseRef(c.User + "/" + args[0])
 			if err != nil {
-				return cli.NewAPIError(err)
+				return cli.NewCLIError(err)
 			}
 
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
+			with, err := exercise.ParseRef(c.User + "/" + args[1])
+			if err != nil {
+				return cli.NewCLIError(err)
+			}
+
+			if _, err := c.Exercises.Move(context.TODO(), ref, exercise.MoveSwap, &with); err != nil {
+				return cli.NewAPIError(err)
 			}
 
 			return nil

@@ -7,6 +7,10 @@ import (
 	"path"
 
 	"github.com/mitchellh/go-homedir"
+	"github.com/scrot/musclemem-api/internal/exercise"
+	"github.com/scrot/musclemem-api/internal/sdk"
+	"github.com/scrot/musclemem-api/internal/user"
+	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/viper"
 	"github.com/zalando/go-keyring"
 )
@@ -18,9 +22,11 @@ type CLIConfig struct {
 	// no user is currently logged-in
 	User string
 
-	// BaseURL is the url to the musclemem-api server
-	// all commands use this url to interact with
-	BaseURL string
+	// SDKs
+	// TODO: pointer to things like baseurl since it needs to get updated
+	Exercises *exercise.ExerciseClient
+	Workouts  *workout.WorkoutClient
+	Users     *user.UserClient
 
 	// CLIDate is the date the cli tool was build
 	CLIDate string
@@ -53,14 +59,27 @@ func NewCLIConfig(name, version, author, date string) (*CLIConfig, error) {
 		return nil, err
 	}
 
+	base := viper.GetString("baseurl")
+	client, err := sdk.NewClient(base, "todo", version)
+	if err != nil {
+		return nil, err
+	}
+
+	xclient := exercise.NewExerciseClient(client)
+	wclient := workout.NewWorkoutClient(client)
+	uclient := user.NewUserClient(client)
+
 	config := &CLIConfig{
 		CLIAuthor:  author,
 		CLIVersion: version,
 		CLIDate:    date,
 		CLIName:    name,
 
-		User:    viper.GetString("user"),
-		BaseURL: viper.GetString("baseurl"),
+		User: viper.GetString("user"),
+
+		Exercises: xclient,
+		Workouts:  wclient,
+		Users:     uclient,
 
 		Out:    os.Stdout,
 		OutErr: os.Stderr,

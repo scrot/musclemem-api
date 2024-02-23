@@ -1,14 +1,14 @@
 package list
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
+	"log/slog"
 	"strconv"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
-	"github.com/scrot/musclemem-api/internal/exercise"
+	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -27,34 +27,23 @@ func ListExerciseCmd(c *cli.CLIConfig) *cobra.Command {
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			wi, err := strconv.Atoi(args[0])
+			ref, err := workout.ParseRef(c.User + "/" + args[0])
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d/exercises", c.User, wi)
-			resp, err := cli.SendRequest(http.MethodGet, c.BaseURL, endpoint, nil)
+			slog.Info("parsed exercise", "ref", ref)
+
+			xs, _, err := c.Exercises.List(context.TODO(), ref)
 			if err != nil {
-				return cli.NewAPIError(err)
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
-			}
-
-			defer resp.Body.Close()
-			dec := json.NewDecoder(resp.Body)
-
-			var xs []exercise.Exercise
-			if err := dec.Decode(&xs); err != nil {
 				return cli.NewAPIError(err)
 			}
 
 			t := cli.NewSimpleTable(c)
 			t.SetHeader([]string{"#", "NAME", "WEIGHT", "REPS"})
-			for i, x := range xs {
+			for _, x := range xs {
 				t.Append([]string{
-					fmt.Sprintf("%d", i+1),
+					strconv.Itoa(x.Index),
 					x.Name,
 					fmt.Sprintf("%.1f", x.Weight),
 					fmt.Sprintf("%d", x.Repetitions),

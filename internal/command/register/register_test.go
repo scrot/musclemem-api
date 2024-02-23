@@ -15,9 +15,7 @@ func TestRegister(t *testing.T) {
 		{"registerWithFlags"},
 	}
 
-	config := &cli.CLIConfig{
-		BaseURL: "",
-	}
+	config := &cli.CLIConfig{}
 
 	for _, c := range cs {
 		t.Run(c.name, func(t *testing.T) {

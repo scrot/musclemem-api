@@ -1,12 +1,13 @@
 package add
 
 import (
-	"fmt"
-	"net/http"
+	"context"
+	"encoding/json"
 	"os"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
+	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -39,14 +40,15 @@ func NewAddWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
 			}
 			defer file.Close()
 
-			endpoint := fmt.Sprintf("/users/%s/workouts", c.User)
-			resp, err := cli.SendRequest(http.MethodPost, c.BaseURL, endpoint, file)
-			if err != nil {
-				return cli.NewAPIError(err)
+			var w workout.Workout
+			if err := json.NewDecoder(file).Decode(&w); err != nil {
+				return cli.NewCLIError(err)
 			}
 
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
+			w.Owner = c.User
+
+			if _, _, err := c.Workouts.Add(context.TODO(), w); err != nil {
+				return cli.NewAPIError(err)
 			}
 
 			return nil

@@ -1,7 +1,6 @@
 package login
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc/v2"
@@ -25,7 +24,7 @@ func NewLoginCmd(c *cli.CLIConfig) *cobra.Command {
 		Use:   "login",
 		Short: "Log in the user",
 		Long: `Binds the cli tool to a specific user, all
-  all subsequent actions will be done as if by the user`,
+    all subsequent actions will be done as if by the user`,
 		Example: heredoc.Doc(`
       $ mm login --username anne@email.com --password passwd
     `),
@@ -36,9 +35,7 @@ func NewLoginCmd(c *cli.CLIConfig) *cobra.Command {
 				return cli.NewCLIError(err)
 			}
 
-			if opts.Username == "" || opts.Password == "" {
-				return cli.NewCLIError(errors.New("invalid flags"))
-			}
+			// TODO: exchange for api-token?
 
 			if err := keyring.Set(c.CLIName, opts.Username, opts.Password); err != nil {
 				return cli.NewCLIError(err)

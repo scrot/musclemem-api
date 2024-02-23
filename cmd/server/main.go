@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v10"
 	"github.com/lmittmann/tint"
 	"github.com/scrot/musclemem-api/internal"
 	"github.com/scrot/musclemem-api/internal/exercise"
@@ -24,11 +23,6 @@ import (
 
 var version string
 
-type Env struct {
-	URL         string `env:"URL" envDefault:":8080"`
-	Environment string `env:"ENVIRONMENT" envDefault:"development"`
-}
-
 // TODO: return different ExitCodes (also for cancel)
 func main() {
 	if _, err := maxprocs.Set(); err != nil {
@@ -37,25 +31,21 @@ func main() {
 	}
 
 	ctx := context.Background()
-	if err := run(ctx, os.Stdout, os.Args); err != nil {
+	if err := run(ctx, os.Getenv); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, _ io.Writer, _ []string) error {
+func run(ctx context.Context, getenv func(string) string) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	// load environment variables
-	var environment Env
-	if err := env.Parse(&environment); err != nil {
-		os.Exit(1)
-	}
+	env := getenv("ENVIRONMENT")
 
 	// set logger with colour
 	var opts tint.Options
-	if environment.Environment == "development" {
+	if env == "development" {
 		opts.Level = slog.LevelDebug
 	}
 	l := slog.New(tint.NewHandler(os.Stdout, &opts)).With("version", version)
@@ -80,8 +70,9 @@ func run(ctx context.Context, _ io.Writer, _ []string) error {
 		os.Exit(1)
 	}
 
+	addr := net.JoinHostPort(getenv("HOST"), getenv("PORT"))
 	httpServer := &http.Server{
-		Addr:         environment.URL,
+		Addr:         addr,
 		Handler:      server,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
@@ -90,7 +81,7 @@ func run(ctx context.Context, _ io.Writer, _ []string) error {
 
 	// run server in its own goroutine
 	go func() {
-		l.Info("server started listening", "addr", environment.URL, "cores", procs, "env", environment.Environment)
+		l.Info("server started listening", "addr", addr, "cores", procs, "env", env)
 		if err := httpServer.ListenAndServe(); err != nil {
 			switch err {
 			case http.ErrServerClosed:
@@ -106,6 +97,7 @@ func run(ctx context.Context, _ io.Writer, _ []string) error {
 		kill := make(chan os.Signal, 1)
 		signal.Notify(kill, syscall.SIGINT, syscall.SIGTERM)
 		<-kill
+		l.Info("server received kill signal, shutting down")
 		cancel()
 	}()
 

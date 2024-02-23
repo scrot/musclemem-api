@@ -21,7 +21,7 @@ func NewServer(
 ) http.Handler {
 	mux := http.NewServeMux()
 
-	addRoutes(mux, logger, users, workouts, exercises)
+	RegisterEndpoints(mux, logger, users, workouts, exercises)
 
 	// TODO: middleware
 	var handler http.Handler = mux

@@ -1,11 +1,11 @@
 package remove
 
 import (
-	"fmt"
-	"net/http"
+	"context"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/scrot/musclemem-api/internal/cli"
+	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
 )
 
@@ -22,20 +22,13 @@ func NewRemoveWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
     `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			var wi int
-			_, err := fmt.Sscanf(args[0], "%d", &wi)
+			ref, err := workout.ParseRef(c.User + "/" + args[0])
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			endpoint := fmt.Sprintf("/users/%s/workouts/%d", c.User, wi)
-			resp, err := cli.SendRequest(http.MethodDelete, c.BaseURL, endpoint, nil)
-			if err != nil {
+			if _, _, err := c.Workouts.Delete(context.TODO(), ref); err != nil {
 				return cli.NewAPIError(err)
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				return cli.NewAPIStatusError(resp)
 			}
 
 			return nil

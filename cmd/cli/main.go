@@ -17,6 +17,8 @@ var (
 	date    = ""
 )
 
+// TODO: handle batch user/workout add in cli
+// TODO: check user logged in for some commands!
 // TODO: init configuration file (baseurl, configpath)
 // TODO: list single exercise / workout using wi/ei?
 // TODO: make it possible to change config path

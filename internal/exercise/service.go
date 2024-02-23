@@ -1,13 +1,12 @@
 package exercise
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 
-	apiutils "github.com/scrot/musclemem-api/internal/server"
+	"github.com/scrot/musclemem-api/internal/api"
 )
 
 func NewFetchHandler(l *slog.Logger, exercises Retreiver) http.Handler {
@@ -24,34 +23,26 @@ func NewFetchHandler(l *slog.Logger, exercises Retreiver) http.Handler {
 
 		wi, err := strconv.Atoi(r.PathValue("workout"))
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		ei, err := strconv.Atoi(exercise)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		e, err := exercises.ByID(username, wi, ei)
+		fetched, err := exercises.ByID(username, wi, ei)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		l.Debug(fmt.Sprintf("fetched exercise %s", e.Key()))
+		l.Debug(fmt.Sprintf("fetched exercise %s", fetched.Ref()))
 
-		payload, err := json.Marshal(&e)
-		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		if _, err := w.Write(payload); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		if err := api.WriteJSON(w, http.StatusOK, fetched); err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 	})
@@ -70,26 +61,22 @@ func NewFetchAllHandler(l *slog.Logger, exercises Retreiver) http.Handler {
 
 		wi, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		xs, err := exercises.ByWorkout(username, wi)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		l.Debug("fetched exercises", "count", len(xs))
 
-		xsJSON, err := json.Marshal(xs)
-		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		if err := api.WriteJSON(w, http.StatusOK, xs); err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(xsJSON)
 	})
 }
 
@@ -106,71 +93,26 @@ func NewCreateHandler(l *slog.Logger, exercises Storer) http.Handler {
 
 		wid, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		js, typ, err := apiutils.RequestJSON(r)
+		add, err := api.ReadJSON[Exercise](r)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		var responseBody []byte
-		switch typ {
-		case apiutils.TypeJSONObject:
-			var ex Exercise
-			if err := json.Unmarshal(js, &ex); err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-
-			nex, err := exercises.New(username, wid, ex.Name, ex.Weight, ex.Repetitions)
-			if err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-
-			responseBody, err = json.Marshal(nex)
-			if err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-
-			l.Debug(fmt.Sprintf("exercise %s created", nex.Key()))
-		case apiutils.TypeJSONArray:
-			var xs []Exercise
-			if err := json.Unmarshal(js, &xs); err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-
-			var nxs []Exercise
-			for _, ex := range xs {
-				nex, err := exercises.New(username, wid, ex.Name, ex.Weight, ex.Repetitions)
-				if err != nil {
-					apiutils.WriteInternalError(l, w, err, "")
-					return
-				}
-				nxs = append(nxs, nex)
-			}
-
-			var err error
-			responseBody, err = json.Marshal(nxs)
-			if err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-
-			l.Debug(fmt.Sprintf("%d exercises created", len(nxs)))
-		default:
-			apiutils.WriteInternalError(l, w, err, "")
+		created, err := exercises.New(username, wid, add.Name, add.Weight, add.Repetitions)
+		if err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write(responseBody); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		l.Debug(fmt.Sprintf("exercise %s created", created.Ref()))
+
+		if err := api.WriteJSON(w, http.StatusOK, created); err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 	})
@@ -190,34 +132,32 @@ func NewDeleteHandler(l *slog.Logger, exercises Deleter) http.Handler {
 
 		wi, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		ei, err := strconv.Atoi(exercise)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		e, err := exercises.Delete(username, wi, ei)
+		deleted, err := exercises.Delete(username, wi, ei)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		w.Header().Add("Content-Type", "application/json")
+		l.Debug("exercise deleted", "key", deleted.Ref())
 
-		// TODO: write into buffer first to prevent double writing
-		// while writing the error message on err
-		enc := json.NewEncoder(w)
-		if err := enc.Encode(e); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		if err := api.WriteJSON(w, http.StatusOK, deleted); err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 	})
 }
 
+// TODO merge all update functions into a single one
 func NewUpdateHandler(l *slog.Logger, exercises Updater) http.Handler {
 	l = l.With("handler", "UpdateHandler")
 
@@ -232,60 +172,56 @@ func NewUpdateHandler(l *slog.Logger, exercises Updater) http.Handler {
 
 		wi, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		ei, err := strconv.Atoi(exercise)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		defer r.Body.Close()
-		dec := json.NewDecoder(r.Body)
-
-		var patch Exercise
-		if err := dec.Decode(&patch); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		patch, err := api.ReadJSON[Exercise](r)
+		if err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
-		var ex Exercise
-		switch {
-		case patch.Name != "":
+		var updated Exercise
+		if patch.Name != "" {
+			l = l.With("name", patch.Name)
 			cx, err := exercises.ChangeName(username, wi, ei, patch.Name)
 			if err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
+				api.WriteInternalError(l, w, err, "")
 				return
 			}
-			ex.Name = cx.Name
-			fallthrough
-		case patch.Weight > 0:
-			cx, err := exercises.UpdateWeight(username, wi, ei, patch.Weight)
-			if err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-			ex.Weight = cx.Weight
-			fallthrough
-		case patch.Repetitions > 0:
-			cx, err := exercises.UpdateRepetitions(username, wi, ei, patch.Repetitions)
-			if err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
-				return
-			}
-			ex.Repetitions = cx.Repetitions
-		default:
-			apiutils.WriteInternalError(l, w, err, "")
-			return
+			updated.Name = cx.Name
 		}
 
-		w.Header().Add("Content-Type", "application/json")
+		if patch.Weight > 0 {
+			l = l.With("weight", patch.Weight)
+			cx, err := exercises.UpdateWeight(username, wi, ei, patch.Weight)
+			if err != nil {
+				api.WriteInternalError(l, w, err, "")
+				return
+			}
+			updated.Weight = cx.Weight
 
-		enc := json.NewEncoder(w)
-		if err := enc.Encode(ex); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		}
+
+		if patch.Repetitions > 0 {
+			l = l.With("repetitions", patch.Repetitions)
+			cx, err := exercises.UpdateRepetitions(username, wi, ei, patch.Repetitions)
+			if err != nil {
+				api.WriteInternalError(l, w, err, "")
+				return
+			}
+			updated.Repetitions = cx.Repetitions
+		}
+
+		if err := api.WriteJSON(w, http.StatusOK, updated); err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 	})
@@ -308,13 +244,13 @@ func NewUpHandler(l *slog.Logger, exercises Orderer) http.Handler {
 
 		wi, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		ei1, err := strconv.Atoi(exercise)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
@@ -322,12 +258,12 @@ func NewUpHandler(l *slog.Logger, exercises Orderer) http.Handler {
 			ei2 := ei1 - 1
 			l = l.With("to-index", ei2)
 			if err := exercises.Swap(username, wi, ei1, ei2); err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
+				api.WriteInternalError(l, w, err, "")
 				return
 			}
 		} else {
 			err := fmt.Errorf("index %d out of range", ei1)
-			apiutils.WriteInternalError(l, w, err, "index already at the top")
+			api.WriteInternalError(l, w, err, "index already at the top")
 			return
 		}
 
@@ -352,19 +288,19 @@ func NewDownHandler(l *slog.Logger, exercises Orderer) http.Handler {
 
 		wi, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		ei1, err := strconv.Atoi(exercise)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		count, err := exercises.Len(username, wi)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
@@ -373,12 +309,12 @@ func NewDownHandler(l *slog.Logger, exercises Orderer) http.Handler {
 			l = l.With("to-index", ei2)
 
 			if err := exercises.Swap(username, wi, ei1, ei2); err != nil {
-				apiutils.WriteInternalError(l, w, err, "")
+				api.WriteInternalError(l, w, err, "")
 				return
 			}
 		} else {
 			err := fmt.Errorf("index %d out of range", ei1)
-			apiutils.WriteInternalError(l, w, err, "index already at bottom")
+			api.WriteInternalError(l, w, err, "index already at bottom")
 			return
 		}
 
@@ -392,6 +328,10 @@ func NewDownHandler(l *slog.Logger, exercises Orderer) http.Handler {
 func NewSwapHandler(l *slog.Logger, exercises Orderer) http.Handler {
 	l = l.With("handler", "SwapHandler")
 
+	type request struct {
+		Index int `json:"with"`
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var (
 			username = r.PathValue("username")
@@ -403,32 +343,24 @@ func NewSwapHandler(l *slog.Logger, exercises Orderer) http.Handler {
 
 		wi, err := strconv.Atoi(workout)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 
 		ei1, err := strconv.Atoi(exercise)
 		if err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
-
-		defer r.Body.Close()
-		dec := json.NewDecoder(r.Body)
-
-		data := struct {
-			With int `json:"with"`
-		}{}
-		if err := dec.Decode(&data); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		with, err := api.ReadJSON[request](r)
+		if err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
+		l = l.With("with", with.Index)
 
-		ei2 := data.With
-		l = l.With("to-index", ei2)
-
-		if err := exercises.Swap(username, wi, ei1, ei2); err != nil {
-			apiutils.WriteInternalError(l, w, err, "")
+		if err := exercises.Swap(username, wi, ei1, with.Index); err != nil {
+			api.WriteInternalError(l, w, err, "")
 			return
 		}
 

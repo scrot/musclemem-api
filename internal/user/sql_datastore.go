@@ -2,6 +2,7 @@ package user
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/scrot/musclemem-api/internal/storage"
 )
@@ -14,13 +15,46 @@ func NewSQLUserStore(ds *storage.SqliteDatastore) UserStore {
 	return &SQLUserStore{ds}
 }
 
-func (us *SQLUserStore) New(username, email, password string) (User, error) {
+func (us *SQLUserStore) Authenticate(username string, password []byte) (User, error) {
+	const stmt = `
+  SELECT password
+  FROM users
+  WHERE username = {{ . }}
+  `
+
+	if username == "" || len(password) <= 0 {
+		return User{}, fmt.Errorf("Authenticate: %w", ErrInvalidFields)
+	}
+
+	q, args, err := us.CompileStatement(stmt, username)
+	if err != nil {
+		return User{}, fmt.Errorf("Authenticate: compile: %w", err)
+	}
+
+	var actual []byte
+	if err := us.QueryRow(q, args...).Scan(&actual); err != nil {
+		return User{}, fmt.Errorf("Authenticate: query: %w", err)
+	}
+
+	if slices.Equal(password, actual) {
+		return User{}, ErrWrongPassword
+	}
+
+	u, err := us.ByUsername(username)
+	if err != nil {
+		return User{}, fmt.Errorf("Authenticate: fetch user: %w", err)
+	}
+
+	return u, nil
+}
+
+func (us *SQLUserStore) New(username string, email string, password []byte) (User, error) {
 	const stmt = `
   INSERT INTO users (username, email, password)
   VALUES ({{ .Username}}, {{ .Email }}, {{ .Password }})
   `
 
-	if username == "" || email == "" || password == "" {
+	if username == "" || email == "" || len(password) <= 0 {
 		return User{}, fmt.Errorf("New: %w", ErrInvalidFields)
 	}
 

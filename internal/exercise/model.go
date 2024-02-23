@@ -1,7 +1,10 @@
 package exercise
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 // Exercise contains details of a single workout exercise
@@ -10,16 +13,16 @@ type Exercise struct {
 	Owner       string  `json:"owner"`
 	Workout     int     `json:"workout"`
 	Index       int     `json:"index"`
-	Name        string  `json:"name" validate:"required"`
-	Weight      float64 `json:"weight" validate:"required"`
-	Repetitions int     `json:"repetitions" validate:"required"`
+	Name        string  `json:"name"`
+	Weight      float64 `json:"weight"`
+	Repetitions int     `json:"repetitions"`
 }
 
 // String prints the Exercise is a human readable format implementing
 // the String interface
 func (e Exercise) String() string {
 	return fmt.Sprintf("exercise %s: name %s, weight %.1f, reps %d",
-		e.Key(),
+		e.Ref(),
 		e.Name,
 		e.Weight,
 		e.Repetitions,
@@ -27,8 +30,39 @@ func (e Exercise) String() string {
 }
 
 // Key prints unique identifiable key
-func (e Exercise) Key() string {
-	return fmt.Sprintf("exercise %s/%d/%d created", e.Owner, e.Workout, e.Index)
+func (e Exercise) Ref() ExerciseRef {
+	return ExerciseRef{e.Owner, e.Workout, e.Index}
+}
+
+// ExerciseRef represents the unique key that references an Exercise
+type ExerciseRef struct {
+	Username      string
+	WorkoutIndex  int
+	ExerciseIndex int
+}
+
+func (er ExerciseRef) String() string {
+	return fmt.Sprintf("%s/%d/%d", er.Username, er.WorkoutIndex, er.ExerciseIndex)
+}
+
+func ParseRef(s string) (ExerciseRef, error) {
+	ss := strings.Split(s, "/")
+
+	if len(ss) != 3 || ss[0] == "" || ss[1] == "" || ss[2] == "" {
+		return ExerciseRef{}, errors.New("invalid ref expected {username}/{workout-index}/{exercise-index}")
+	}
+
+	wi, err := strconv.Atoi(ss[1])
+	if err != nil {
+		return ExerciseRef{}, err
+	}
+
+	return ExerciseRef{Username: ss[0], WorkoutIndex: wi}, nil
+}
+
+// With is used to represent the target exercise used to swap exercises
+type With struct {
+	Exercise ExerciseRef
 }
 
 // ByIndex implements sort.Interface, sorting exercises according to their index

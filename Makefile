@@ -1,10 +1,10 @@
 SERVER_PACKAGE_PATH := ./cmd/server
-SERVER_BINARY := musclemem-api
+SERVER_BINARY := api
 
 CLI_PACKAGE_PATH := ./cmd/cli
 CLI_BINARY := mm
 
-OUTPUT_PATH := /tmp/${BINARY_NAME}
+OUTPUT_PATH := /tmp/musclemem-api
 
 GITHUB_UNAME := scrot
 # GITHUB_TOKEN export this variable
@@ -73,12 +73,14 @@ server/build: tidy
 ## server/run: run the server locally
 .PHONY: server/run
 server/run: server/build
-	@${OUTPUT_PATH}${SERVER_BINARY}
+	@ENVIRONMENT=development HOST=localhost PORT=8080 \
+		${OUTPUT_PATH}${SERVER_BINARY}
 
 ## server/live: run the server with reloading on file changes
 .PHONY: server/live
 server/live:
-	@go run github.com/cosmtrek/air@latest \
+	@ENVIRONMENT=development HOST=localhost PORT=8080 \
+		go run github.com/cosmtrek/air@latest \
 		--build.cmd "make server/kill && make server/build" \
 		--build.bin "${OUTPUT_PATH}${SERVER_BINARY}" \
 		--build.delay "100" \

@@ -27,8 +27,8 @@ func NewInitCmd(c *cli.CLIConfig) *cobra.Command {
 		Short: "initialise cli",
 		Long:  `setup new configuration for cli tool`,
 		Example: heredoc.Doc(`
-      $ mm init
-      $ mm init --baseurl https://musclemem.app --config /path/to/configfile
+    $ mm init
+    $ mm init --baseurl https://musclemem.app --config /path/to/configfile
     `),
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if err := NewConfigFile(c, opts.BaseURL, opts.Overwrite); err != nil {
@@ -83,8 +83,9 @@ func NewConfigFile(c *cli.CLIConfig, base string, overwrite bool) error {
 		return err
 	}
 
-	c.BaseURL = base
-	c.CLIConfigPath = configfile
+	// TODO: switch with Client...
+	// c.BaseURL = base
+	// c.CLIConfigPath = configfile
 
 	return nil
 }

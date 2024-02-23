@@ -9,7 +9,7 @@ import (
 	"github.com/scrot/musclemem-api/internal/workout"
 )
 
-func addRoutes(
+func RegisterEndpoints(
 	mux *http.ServeMux,
 	logger *slog.Logger,
 	users user.UserStore,
