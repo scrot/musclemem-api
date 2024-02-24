@@ -4,7 +4,7 @@ SERVER_BINARY := api
 CLI_PACKAGE_PATH := ./cmd/cli
 CLI_BINARY := mm
 
-OUTPUT_PATH := /tmp/musclemem-api
+OUTPUT_PATH := /tmp/musclemem-api/
 
 GITHUB_UNAME := scrot
 # GITHUB_TOKEN export this variable
@@ -36,7 +36,7 @@ no-dirty:
 ## tidy: format code and tidy modfile
 .PHONY: tidy
 tidy:
-	gofumpt -w .
+	gofmt -w .
 	go mod tidy -v
 
 ## audit: run quality control checks
@@ -60,13 +60,17 @@ test/cover:
 	go test -v -race -buildvcs -coverprofile=${OUTPUT_PATH}coverage.out ./...
 	go tool cover -html=${OUTPUT_PATH}coverage.out
 
+.PHONY: tmp
+tmp: 
+	@mkdir -p ${OUTPUT_PATH}
+
 # ==================================================================================== #
 # SERVER
 # ==================================================================================== #
 
 ## server/build: build the server
 .PHONY: server/build
-server/build: tidy
+server/build: tmp tidy
 	@go build -ldflags='-X main.version=$(shell git rev-parse --short HEAD)-snapshot' \
 		-o=${OUTPUT_PATH}${SERVER_BINARY} ${SERVER_PACKAGE_PATH}
 
@@ -74,7 +78,7 @@ server/build: tidy
 .PHONY: server/run
 server/run: server/build
 	@ENVIRONMENT=development HOST=localhost PORT=8080 \
-		${OUTPUT_PATH}${SERVER_BINARY}
+	${OUTPUT_PATH}${SERVER_BINARY}
 
 ## server/live: run the server with reloading on file changes
 .PHONY: server/live
@@ -100,7 +104,7 @@ server/kill:
 BVAR := cmd/cli/main
 ## cli/build: build the server
 .PHONY: cli/build
-cli/build: tidy
+cli/build: tmp tidy
 	@go build \
 	  -ldflags="-X '${BVAR}.name=${CLI_BINARY}' -X '${BVAR}.version=$(shell git rev-parse --short HEAD)-snapshot' -X '${BVAR}.date=$(shell date)'"\
 		-o=${OUTPUT_PATH}${CLI_BINARY} ${CLI_PACKAGE_PATH}

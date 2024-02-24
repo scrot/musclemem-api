@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
-	"time"
 
 	"github.com/lmittmann/tint"
 	"github.com/scrot/musclemem-api/internal"
@@ -50,9 +47,7 @@ func run(ctx context.Context, getenv func(string) string) error {
 	}
 	l := slog.New(tint.NewHandler(os.Stdout, &opts)).With("version", version)
 
-	// adhere container quota for cores if set
-	procs := runtime.GOMAXPROCS(0)
-
+	// configure database
 	dbConfig := storage.DefaultSqliteConfig
 	db, err := storage.NewSqliteDatastore(dbConfig)
 	if err != nil {
@@ -60,37 +55,21 @@ func run(ctx context.Context, getenv func(string) string) error {
 		os.Exit(1)
 	}
 
+	// register service stores
 	us := user.NewSQLUserStore(db)
 	ws := workout.NewSQLWorkoutStore(db)
 	xs := exercise.NewSQLExerciseStore(db)
 
-	server := internal.NewServer(l, us, ws, xs)
+	// configure and start server
+	cfg := internal.ServerConfig{
+		ListenAddr: net.JoinHostPort(getenv("HOST"), getenv("PORT")),
+	}
+
+	server := internal.NewServer(cfg, l, us, ws, xs)
 	if err != nil {
 		l.Error(err.Error())
 		os.Exit(1)
 	}
-
-	addr := net.JoinHostPort(getenv("HOST"), getenv("PORT"))
-	httpServer := &http.Server{
-		Addr:         addr,
-		Handler:      server,
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
-
-	// run server in its own goroutine
-	go func() {
-		l.Info("server started listening", "addr", addr, "cores", procs, "env", env)
-		if err := httpServer.ListenAndServe(); err != nil {
-			switch err {
-			case http.ErrServerClosed:
-				l.Info("server stopped listening to new requests")
-			default:
-				l.Error(fmt.Sprintf("unexpected error while listening: %s", err))
-			}
-		}
-	}()
 
 	// graceful shutdown on terminate signal
 	go func() {
@@ -101,26 +80,7 @@ func run(ctx context.Context, getenv func(string) string) error {
 		cancel()
 	}()
 
-	// graceful shutdown pattern adopted from Mat Ryer
-	// shuts down the server if context get's canceled
-	done := make(chan struct{}, 1)
-
-	go func() {
-		<-ctx.Done()
-		// new context required since ctx is already canceled
-		shutdownCtx := context.Background()
-		shutdownCtx, cancel = context.WithTimeout(shutdownCtx, 3*time.Second)
-		defer cancel()
-
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			l.Error(fmt.Sprintf("error shutting down http server: %s", err))
-			os.Exit(1)
-		}
-		l.Info("server gracefully shutdown, till next time!")
-		done <- struct{}{}
-	}()
-
-	<-done
+	server.Start(ctx)
 
 	return nil
 }
