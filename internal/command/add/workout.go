@@ -1,11 +1,14 @@
 package add
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/scrot/musclemem-api/internal/api"
 	"github.com/scrot/musclemem-api/internal/cli"
 	"github.com/scrot/musclemem-api/internal/workout"
 	"github.com/spf13/cobra"
@@ -34,21 +37,35 @@ func NewAddWorkoutCmd(c *cli.CLIConfig) *cobra.Command {
     `),
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			file, err := os.Open(opts.FilePath)
+			file, err := os.ReadFile(opts.FilePath)
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
-			defer file.Close()
 
-			var w workout.Workout
-			if err := json.NewDecoder(file).Decode(&w); err != nil {
+			dec := json.NewDecoder(bytes.NewReader(file))
+
+			var ws []workout.Workout
+			switch api.JSONType(file) {
+			case api.TypeJSONObject:
+				var w workout.Workout
+				if err := dec.Decode(&w); err != nil {
+					return cli.NewCLIError(err)
+				}
+				ws = append(ws, w)
+			case api.TypeJSONArray:
+				if err := dec.Decode(&ws); err != nil {
+					return cli.NewCLIError(err)
+				}
+			default:
+				err := errors.New("invalid json type")
 				return cli.NewCLIError(err)
 			}
 
-			w.Owner = c.User
-
-			if _, _, err := c.Workouts.Add(context.TODO(), w); err != nil {
-				return cli.NewAPIError(err)
+			for _, w := range ws {
+				w.Owner = c.User
+				if _, _, err := c.Workouts.Add(context.TODO(), w); err != nil {
+					return cli.NewAPIError(err)
+				}
 			}
 
 			return nil

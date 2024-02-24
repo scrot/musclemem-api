@@ -1,20 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-)
-
-type TypeJSON int
-
-const (
-	TypeJSONObject TypeJSON = iota
-	TypeJSONArray
-	TypeJSONUnknown
-	TypeJSONInvalid
 )
 
 // WriteJSON encodes v as json and writes to the ResponseWriter
@@ -41,8 +32,19 @@ func ReadJSON[T any](r *http.Request) (T, error) {
 	return v, nil
 }
 
+type TypeJSON int
+
+const (
+	TypeJSONObject TypeJSON = iota
+	TypeJSONArray
+	TypeJSONUnknown
+	TypeJSONInvalid
+)
+
 // JSONType detects if the JSON payload is an array or an object
-func JSONType(r io.Reader) TypeJSON {
+func JSONType(payload []byte) TypeJSON {
+	r := bytes.NewReader(payload)
+
 	t, err := json.NewDecoder(r).Token()
 	if err != nil {
 		return TypeJSONInvalid

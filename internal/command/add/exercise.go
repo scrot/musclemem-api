@@ -1,12 +1,15 @@
 package add
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strconv"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/scrot/musclemem-api/internal/api"
 	"github.com/scrot/musclemem-api/internal/cli"
 	"github.com/scrot/musclemem-api/internal/exercise"
 	"github.com/spf13/cobra"
@@ -35,27 +38,41 @@ func NewAddExerciseCmd(c *cli.CLIConfig) *cobra.Command {
       $ mm add exercise 1 -f path/to/exercises.json
     `),
 		RunE: func(_ *cobra.Command, args []string) error {
-			file, err := os.Open(opts.FilePath)
-			if err != nil {
-				return cli.NewCLIError(err)
-			}
-			defer file.Close()
-
-			var e exercise.Exercise
-			if err := json.NewDecoder(file).Decode(&e); err != nil {
-				return cli.NewCLIError(err)
-			}
-
 			wi, err := strconv.Atoi(args[0])
 			if err != nil {
 				return cli.NewCLIError(err)
 			}
 
-			e.Owner = c.User
-			e.Workout = wi
+			file, err := os.ReadFile(opts.FilePath)
+			if err != nil {
+				return cli.NewCLIError(err)
+			}
 
-			if _, _, err := c.Exercises.Add(context.TODO(), e); err != nil {
-				return cli.NewAPIError(err)
+			dec := json.NewDecoder(bytes.NewReader(file))
+
+			var xs []exercise.Exercise
+			switch api.JSONType(file) {
+			case api.TypeJSONObject:
+				var x exercise.Exercise
+				if err := dec.Decode(&x); err != nil {
+					return cli.NewCLIError(err)
+				}
+				xs = append(xs, x)
+			case api.TypeJSONArray:
+				if err := dec.Decode(&xs); err != nil {
+					return cli.NewCLIError(err)
+				}
+			default:
+				err := errors.New("invalid json type")
+				return cli.NewCLIError(err)
+			}
+
+			for _, x := range xs {
+				x.Owner = c.User
+				x.Workout = wi
+				if _, _, err := c.Exercises.Add(context.TODO(), x); err != nil {
+					return cli.NewAPIError(err)
+				}
 			}
 
 			return nil
