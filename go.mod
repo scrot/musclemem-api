@@ -6,7 +6,7 @@ require (
 	github.com/VauntDev/tqla v0.0.1
 	github.com/go-playground/validator/v10 v10.18.0
 	github.com/golang-migrate/migrate/v4 v4.17.0
-	github.com/google/go-cmp v0.6.0
+	github.com/jackc/pgx/v5 v5.3.1
 	github.com/lmittmann/tint v1.0.4
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.19.0
@@ -14,6 +14,7 @@ require (
 )
 
 require (
+	github.com/cockroachdb/cockroach-go/v2 v2.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
@@ -23,7 +24,10 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect

@@ -1,7 +1,10 @@
 SERVER_PACKAGE_PATH := ./cmd/server
-SERVER_BINARY := api
+APP_NAME := musclemem-api
 
 OUTPUT_PATH := /tmp/musclemem-api/
+
+PROJECT_ID := musclemem
+GC_REGION := europe-west1
 
 ## help: print this help message
 .PHONY: help
@@ -29,6 +32,10 @@ audit:
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 	go test -race -buildvcs -vet=off ./...
 
+## kill: kills the server on running port :8080
+.PHONY: kill
+kill:
+	lsof -t -i:8080 | xargs -r kill
 
 ## test: run all tests
 .PHONY: test
@@ -42,31 +49,38 @@ test/cover:
 	go tool cover -html=${OUTPUT_PATH}coverage.out
 
 
-## server/build: build the server
-.PHONY: server/build
-server/build: tmp tidy
+## build: build the server
+.PHONY: build
+build: tmp tidy
 	@go build -ldflags='-X main.version=$(shell git rev-parse --short HEAD)-snapshot' \
-		-o=${OUTPUT_PATH}${SERVER_BINARY} ${SERVER_PACKAGE_PATH}
+		-o=${OUTPUT_PATH}${APP_NAME} ${SERVER_PACKAGE_PATH}
 
-## server/run: run the server locally
-.PHONY: server/run
-server/run: server/build
+## run: run the server locally
+.PHONY: run
+run: build
 	@ENVIRONMENT=development HOST=localhost PORT=8080 \
-	${OUTPUT_PATH}${SERVER_BINARY}
+	${OUTPUT_PATH}${APP_NAME}
 
-## server/live: run the server with reloading on file changes
-.PHONY: server/live
-server/live:
+.PHONY: run/prod
+run/prod: build
+	@ENVIRONMENT=production HOST=localhost PORT=8080 DATABASE_DSN=${MUSCLEMEM_DB_DSN} \
+	${OUTPUT_PATH}${APP_NAME}
+
+## live: run the server with reloading on file changes
+.PHONY: live
+live:
 	@ENVIRONMENT=development HOST=localhost PORT=8080 \
 		go run github.com/cosmtrek/air@latest \
-		--build.cmd "make server/kill && make server/build" \
-		--build.bin "${OUTPUT_PATH}${SERVER_BINARY}" \
+		--build.cmd "make kill && make build" \
+		--build.bin "${OUTPUT_PATH}${APP_NAME}" \
 		--build.delay "100" \
 		--build.exclude_dir "" \
 		--build.include_ext "go, sql" \
 		--misc.clean_on_exit "true"
 
-## server/kill: kills the server on running port :8080
-.PHONY: server/kill
-server/kill:
-	lsof -t -i:8080 | xargs -r kill
+
+## deploy: deploy to google cloud run
+.PHONY: deploy
+deploy:
+	@gcloud builds submit --tag gcr.io/${PROJECT_ID}/${APP_NAME} .
+	@gcloud run deploy ${APP_NAME} --image gcr.io/${PROJECT_ID}/${APP_NAME} --region ${GC_REGION}

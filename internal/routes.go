@@ -16,6 +16,7 @@ func RegisterEndpoints(
 	workouts workout.WorkoutStore,
 	exercises exercise.ExerciseStore,
 ) {
+	mux.Handle("GET /ready", NewReadyHandler(logger))
 	mux.Handle("POST /users", user.NewCreateHandler(logger, users))
 	mux.Handle("GET /users/{username}/workouts", workout.NewFetchAllHandler(logger, workouts))
 	mux.Handle("POST /users/{username}/workouts", workout.NewCreateHandler(logger, workouts))
@@ -29,4 +30,11 @@ func RegisterEndpoints(
 	mux.Handle("PUT /users/{username}/workouts/{workout}/exercises/{exercise}/up", exercise.NewUpHandler(logger, exercises))
 	mux.Handle("PUT /users/{username}/workouts/{workout}/exercises/{exercise}/down", exercise.NewDownHandler(logger, exercises))
 	mux.Handle("POST /users/{username}/workouts/{workout}/exercises/{exercise}/swap", exercise.NewSwapHandler(logger, exercises))
+}
+
+func NewReadyHandler(l *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		l.Info("answered readiness probe")
+		w.Write([]byte("ready"))
+	})
 }

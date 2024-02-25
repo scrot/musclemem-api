@@ -8,10 +8,10 @@ import (
 )
 
 type SQLUserStore struct {
-	*storage.SqliteDatastore
+	*storage.SqlDatastore
 }
 
-func NewSQLUserStore(ds *storage.SqliteDatastore) UserStore {
+func NewSQLUserStore(ds *storage.SqlDatastore) UserStore {
 	return &SQLUserStore{ds}
 }
 

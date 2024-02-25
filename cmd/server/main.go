@@ -18,7 +18,10 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
-var version string
+var (
+	version string
+	env     string
+)
 
 // TODO: return different ExitCodes (also for cancel)
 func main() {
@@ -40,16 +43,27 @@ func run(ctx context.Context, getenv func(string) string) error {
 
 	env := getenv("ENVIRONMENT")
 
-	// set logger with colour
-	var opts tint.Options
+	// set logger
+	var lh slog.Handler
 	if env == "development" {
-		opts.Level = slog.LevelDebug
+		lh = tint.NewHandler(os.Stdout, &tint.Options{Level: slog.LevelDebug})
+	} else {
+		lh = gcHandler()
 	}
-	l := slog.New(tint.NewHandler(os.Stdout, &opts)).With("version", version)
+	l := slog.New(lh).With("version", version)
 
 	// configure database
-	dbConfig := storage.DefaultSqliteConfig
-	db, err := storage.NewSqliteDatastore(dbConfig)
+	var dbConfig storage.DatastoreConfig
+	if env == "development" {
+		dbConfig = storage.DefaultSqliteConfig
+	} else {
+		dbConfig = storage.DatastoreConfig{
+			DatabaseURL:   getenv("DATABASE_DSN"),
+			MigrationPath: "migrations",
+		}
+	}
+
+	db, err := storage.NewSqlDatastore(dbConfig)
 	if err != nil {
 		l.Error(err.Error())
 		os.Exit(1)
@@ -61,8 +75,20 @@ func run(ctx context.Context, getenv func(string) string) error {
 	xs := exercise.NewSQLExerciseStore(db)
 
 	// configure and start server
-	cfg := internal.ServerConfig{
-		ListenAddr: net.JoinHostPort(getenv("HOST"), getenv("PORT")),
+	var cfg internal.ServerConfig
+	port := getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if env == "development" {
+		cfg = internal.ServerConfig{
+			ListenAddr: ":" + port,
+		}
+	} else {
+		cfg = internal.ServerConfig{
+			ListenAddr: net.JoinHostPort("0.0.0.0", port),
+		}
 	}
 
 	server := internal.NewServer(cfg, l, us, ws, xs)
@@ -83,4 +109,27 @@ func run(ctx context.Context, getenv func(string) string) error {
 	server.Start(ctx)
 
 	return nil
+}
+
+func gcHandler() slog.Handler {
+	h := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slog.LevelDebug,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			switch a.Key {
+			case slog.MessageKey:
+				a.Key = "message"
+			case slog.SourceKey:
+				a.Key = "logging.googleapis.com/sourceLocation"
+			case slog.LevelKey:
+				a.Key = "severity"
+				level := a.Value.Any().(slog.Level)
+				if level == slog.Level(12) {
+					a.Value = slog.StringValue("CRITICAL")
+				}
+			}
+			return a
+		},
+	})
+	return h
 }

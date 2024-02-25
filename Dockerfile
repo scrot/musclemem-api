@@ -5,31 +5,19 @@
 # Builder image
 FROM golang:1.22.0-alpine3.19 AS builder
 
-ENV CGO_ENABLED=0
-ENV GOOS=linux
-ENV GOARCH=arm64
-
-RUN addgroup --system nonroot && \ 
-  adduser --system nonroot --ingroup nonroot
-
-WORKDIR /app
+WORKDIR /usr/src/app
 
 COPY . ./
 RUN go mod download &&\
-  go mod verify &&\
-  go build -o=/app/musclemem-api ./cmd/server
+  go build -o=/tmp/musclemem-api ./cmd/server
 
 # Production image
-FROM scratch
+FROM  gcr.io/distroless/base:latest
+
 LABEL maintainer="Roy de Wildt"
 
-COPY --from=builder /app/musclemem-api /
-COPY --from=builder /app/musclemem.sqlite /
-COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /tmp/musclemem-api /usr/local/bin/
 
-USER nonroot
-
-ENV PORT=8080
 EXPOSE 8080
 
-CMD ["/musclemem-api"]
+CMD ["musclemem-api"]

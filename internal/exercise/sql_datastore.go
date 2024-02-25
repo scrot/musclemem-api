@@ -10,10 +10,10 @@ import (
 )
 
 type SQLExerciseStore struct {
-	*storage.SqliteDatastore
+	*storage.SqlDatastore
 }
 
-func NewSQLExerciseStore(db *storage.SqliteDatastore) *SQLExerciseStore {
+func NewSQLExerciseStore(db *storage.SqlDatastore) *SQLExerciseStore {
 	return &SQLExerciseStore{db}
 }
 
