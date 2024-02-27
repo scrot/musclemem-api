@@ -31,6 +31,7 @@ var DefaultSqliteConfig = DatastoreConfig{
 
 type SqlDatastore struct {
 	*sql.DB
+	placeholder tqla.Option
 }
 
 // NewSqliteDatastore creates a new database at dbURL
@@ -56,7 +57,7 @@ func NewSqlDatastore(config DatastoreConfig) (*SqlDatastore, error) {
 // CompileStatement prepares a SQL statement using tqla.Template
 // statement will be populated with the data argument like {{ .ID }}
 func (ds *SqlDatastore) CompileStatement(stmt string, data any) (string, []any, error) {
-	tmpl, err := tqla.New()
+	tmpl, err := tqla.New(ds.placeholder)
 	if err != nil {
 		return "", []any{}, err
 	}

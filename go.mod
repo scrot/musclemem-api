@@ -6,6 +6,7 @@ require (
 	github.com/VauntDev/tqla v0.0.1
 	github.com/go-playground/validator/v10 v10.18.0
 	github.com/golang-migrate/migrate/v4 v4.17.0
+	github.com/google/go-cmp v0.6.0
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/lmittmann/tint v1.0.4
 	go.uber.org/automaxprocs v1.5.3

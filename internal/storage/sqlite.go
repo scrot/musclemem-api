@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/VauntDev/tqla"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -39,12 +40,14 @@ func newLocalSqlite(dburl, path string, overwrite bool) (*SqlDatastore, error) {
 		return nil, err
 	}
 
+	placeholder := tqla.WithPlaceHolder(tqla.Question)
+
 	if err := m.Up(); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
-			return &SqlDatastore{db}, nil
+			return &SqlDatastore{db, placeholder}, nil
 		}
 		return nil, err
 	}
 
-	return &SqlDatastore{db}, nil
+	return &SqlDatastore{db, placeholder}, nil
 }

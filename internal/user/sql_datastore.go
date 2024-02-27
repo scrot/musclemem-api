@@ -48,13 +48,13 @@ func (us *SQLUserStore) Authenticate(username string, password []byte) (User, er
 	return u, nil
 }
 
-func (us *SQLUserStore) New(username string, email string, password []byte) (User, error) {
+func (us *SQLUserStore) New(username string, email string, password string) (User, error) {
 	const stmt = `
   INSERT INTO users (username, email, password)
   VALUES ({{ .Username}}, {{ .Email }}, {{ .Password }})
   `
 
-	if username == "" || email == "" || len(password) <= 0 {
+	if username == "" || email == "" || password == "" {
 		return User{}, fmt.Errorf("New: %w", ErrInvalidFields)
 	}
 

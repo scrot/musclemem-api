@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/VauntDev/tqla"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/cockroachdb"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -30,12 +31,14 @@ func newCockroach(dburl, path string) (*SqlDatastore, error) {
 		return nil, err
 	}
 
+	placeholder := tqla.WithPlaceHolder(tqla.Dollar)
+
 	if err := m.Up(); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
-			return &SqlDatastore{db}, nil
+			return &SqlDatastore{db, placeholder}, nil
 		}
 		return nil, err
 	}
 
-	return &SqlDatastore{db}, nil
+	return &SqlDatastore{db, placeholder}, nil
 }

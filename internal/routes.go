@@ -33,8 +33,7 @@ func RegisterEndpoints(
 }
 
 func NewReadyHandler(l *slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		l.Info("answered readiness probe")
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("ready"))
 	})
 }

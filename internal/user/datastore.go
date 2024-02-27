@@ -20,7 +20,7 @@ type Storer interface {
 	// New is responsible for validating the email and
 	// encrypting the password before storing. A new userID will
 	// be returned on success otherwise an error is thrown
-	New(username string, email string, password []byte) (User, error)
+	New(username string, email string, password string) (User, error)
 }
 
 // Retreiver implementations can query data
