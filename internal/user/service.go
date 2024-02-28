@@ -13,26 +13,19 @@ import (
 func NewLoginHandler(l *slog.Logger, users Retreiver) http.Handler {
 	l = l.With("handler", "LoginHandler")
 
-	type request struct {
+	type input struct {
 		Username string
 		Password string
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		creds, err := api.ReadJSON[request](r)
+		i, err := api.ReadJSON[input](r)
 		if err != nil {
 			WriteUnauthorizedError(l, w, err)
 			return
 		}
 
-		// TODO: should this be a struct?
-		hash, err := NewBcryptHash(creds.Password)
-		if err != nil {
-			api.WriteInternalError(l, w, err, "")
-			return
-		}
-
-		authenticated, err := users.Authenticate(creds.Username, hash.value)
+		authenticated, err := users.Authenticate(i.Username, i.Password)
 		if err != nil {
 			if errors.Is(err, ErrWrongPassword) {
 				WriteUnauthorizedError(l, w, err)
@@ -59,16 +52,11 @@ func NewCreateHandler(l *slog.Logger, users Storer) http.Handler {
 				api.WriteInternalError(l, w, err, "")
 			}
 
-			hash, err := NewBcryptHash(user.Password)
-			if err != nil {
-				api.WriteInternalError(l, w, err, "")
-			}
-
-			l := l.With("username", user.Username, "email", user.Email, "password", hash.value)
+			l := l.With("username", user.Username, "email", user.Email, "password", user.Password)
 
 			l.Debug("create new user")
 
-			u, err := users.New(user.Username, user.Email, string(hash.value))
+			u, err := users.New(user.Username, user.Email, user.Password)
 			if err != nil {
 				if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 					msg := fmt.Sprintf("user %q already exists", u.Username)

@@ -16,10 +16,16 @@ import (
 func newLocalSqlite(dburl, path string, overwrite bool) (*SqlDatastore, error) {
 	dbpath, _ := strings.CutPrefix(dburl, "file://")
 	if overwrite {
-		os.Remove(path)
+		os.Remove(dbpath)
 	}
 
-	dbDNS := fmt.Sprintf("file:%s?_foreign_keys=%t", dbpath, true)
+	var dbDNS string
+	if strings.ContainsRune(dburl, '?') {
+		dbDNS = fmt.Sprintf("file:%s", dburl)
+	} else {
+		dbDNS = fmt.Sprintf("file:%s?_foreign_keys=%t", dbpath, true)
+	}
+
 	db, err := sql.Open("sqlite", dbDNS)
 	if err != nil {
 		return nil, err
@@ -35,7 +41,7 @@ func newLocalSqlite(dburl, path string, overwrite bool) (*SqlDatastore, error) {
 		return nil, err
 	}
 
-	m, err := migrate.NewWithInstance("embedded-migrations", source, "cockroach-db", driver)
+	m, err := migrate.NewWithInstance("embedded-migrations", source, "sqlite-db", driver)
 	if err != nil {
 		return nil, err
 	}

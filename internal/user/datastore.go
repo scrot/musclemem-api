@@ -11,8 +11,9 @@ type UserStore interface {
 }
 
 var (
-	ErrInvalidFields = errors.New("contains invalid fields")
+	ErrEmptyField    = errors.New("empty field")
 	ErrWrongPassword = errors.New("wrong password")
+	ErrUnknownUser   = errors.New("user does not exists")
 )
 
 // Storer allow for new users to be created
@@ -34,5 +35,5 @@ type Retreiver interface {
 	// Authenticate returns the user after checking the
 	// credentials. It returns an ErrWrongPassword if
 	// username/password pair doesn't match
-	Authenticate(username string, password []byte) (User, error)
+	Authenticate(username string, password string) (User, error)
 }

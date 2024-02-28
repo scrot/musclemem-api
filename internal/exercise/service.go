@@ -304,7 +304,7 @@ func NewDownHandler(l *slog.Logger, exercises Orderer) http.Handler {
 			return
 		}
 
-		if ei1 < count-1 {
+		if ei1 < count {
 			ei2 := ei1 + 1
 			l = l.With("to-index", ei2)
 
@@ -328,7 +328,7 @@ func NewDownHandler(l *slog.Logger, exercises Orderer) http.Handler {
 func NewSwapHandler(l *slog.Logger, exercises Orderer) http.Handler {
 	l = l.With("handler", "SwapHandler")
 
-	type request struct {
+	type Request struct {
 		Index int `json:"with"`
 	}
 
@@ -352,12 +352,15 @@ func NewSwapHandler(l *slog.Logger, exercises Orderer) http.Handler {
 			api.WriteInternalError(l, w, err, "")
 			return
 		}
-		with, err := api.ReadJSON[request](r)
+
+		with, err := api.ReadJSON[Request](r)
 		if err != nil {
 			api.WriteInternalError(l, w, err, "")
 			return
 		}
-		l = l.With("with", with.Index)
+
+		l = l.With("workout", wi, "index", ei1, "with", with.Index)
+		l.Debug("swaped exercise")
 
 		if err := exercises.Swap(username, wi, ei1, with.Index); err != nil {
 			api.WriteInternalError(l, w, err, "")

@@ -1,10 +1,12 @@
 package user
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/scrot/musclemem-api/internal/storage"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type SQLUserStore struct {
@@ -15,7 +17,7 @@ func NewSQLUserStore(ds *storage.SqlDatastore) UserStore {
 	return &SQLUserStore{ds}
 }
 
-func (us *SQLUserStore) Authenticate(username string, password []byte) (User, error) {
+func (us *SQLUserStore) Authenticate(username string, password string) (User, error) {
 	const stmt = `
   SELECT password
   FROM users
@@ -23,7 +25,7 @@ func (us *SQLUserStore) Authenticate(username string, password []byte) (User, er
   `
 
 	if username == "" || len(password) <= 0 {
-		return User{}, fmt.Errorf("Authenticate: %w", ErrInvalidFields)
+		return User{}, fmt.Errorf("Authenticate: %w", ErrEmptyField)
 	}
 
 	q, args, err := us.CompileStatement(stmt, username)
@@ -31,12 +33,15 @@ func (us *SQLUserStore) Authenticate(username string, password []byte) (User, er
 		return User{}, fmt.Errorf("Authenticate: compile: %w", err)
 	}
 
-	var actual []byte
-	if err := us.QueryRow(q, args...).Scan(&actual); err != nil {
+	var hash []byte
+	if err := us.QueryRow(q, args...).Scan(&hash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return User{}, fmt.Errorf("Authenticate: query: %w", ErrUnknownUser)
+		}
 		return User{}, fmt.Errorf("Authenticate: query: %w", err)
 	}
 
-	if slices.Equal(password, actual) {
+	if err := bcrypt.CompareHashAndPassword(hash, []byte(password)); err != nil {
 		return User{}, ErrWrongPassword
 	}
 
@@ -55,10 +60,20 @@ func (us *SQLUserStore) New(username string, email string, password string) (Use
   `
 
 	if username == "" || email == "" || password == "" {
-		return User{}, fmt.Errorf("New: %w", ErrInvalidFields)
+		return User{}, fmt.Errorf("New: %w", ErrEmptyField)
 	}
 
-	data := User{Username: username, Email: email, Password: password}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return User{}, fmt.Errorf("New: generate hash: %w", err)
+	}
+
+	data := struct {
+		Username string
+		Email    string
+		Password []byte
+	}{Username: username, Email: email, Password: hash}
+
 	q, args, err := us.CompileStatement(stmt, data)
 	if err != nil {
 		return User{}, fmt.Errorf("New: compile: %w", err)
@@ -83,6 +98,10 @@ func (us *SQLUserStore) ByUsername(username string) (User, error) {
   WHERE username = {{ . }}
   `
 
+	if username == "" {
+		return User{}, fmt.Errorf("ByUsername: %w", ErrEmptyField)
+	}
+
 	q, args, err := us.CompileStatement(stmt, username)
 	if err != nil {
 		return User{}, fmt.Errorf("ByUsername: compile: %w", err)
@@ -90,6 +109,9 @@ func (us *SQLUserStore) ByUsername(username string) (User, error) {
 
 	var u User
 	if err := us.QueryRow(q, args...).Scan(&u.Username, &u.Email, &u.Password); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return User{}, ErrUnknownUser
+		}
 		return User{}, fmt.Errorf("ByUsername: query: %w", err)
 	}
 
